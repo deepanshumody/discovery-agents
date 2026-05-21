@@ -1,7 +1,7 @@
 """Command line entry point.
 
 Usage:
-    python -m product_discovery_agents.cli --output outputs/demo
+    python -m discovery_agents.cli --output outputs/demo
 """
 
 from __future__ import annotations

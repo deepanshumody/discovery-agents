@@ -1,6 +1,6 @@
 """Product Discovery Agents package."""
 
-from .pipeline import ProductDiscoveryPipeline
 from .models import AgentRun, EvidenceItem, ProductBrief
+from .pipeline import ProductDiscoveryPipeline
 
 __all__ = ["ProductDiscoveryPipeline", "AgentRun", "EvidenceItem", "ProductBrief"]
