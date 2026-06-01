@@ -18,6 +18,14 @@ from .agents import (
     SelectionAgent,
 )
 from .config import RunConfig
+from .guardrails import (
+    CitationRequiredGuard,
+    GroundednessGuard,
+    GuardrailInput,
+    GuardrailPipeline,
+    PiiRedactionGuard,
+    PromptInjectionGuard,
+)
 from .llm import get_client
 from .models import AgentRun, EvidenceItem, ProductBrief
 from .observability.trace import Trace
@@ -67,8 +75,12 @@ class ProductDiscoveryPipeline:
             eval_agent=self.eval_agent,
             memory_agent=self.memory_agent,
         )
+        self._guard_inputs(brief, evidence)
+
         initial: State = {"brief": brief, "evidence": evidence, "index": self.index}
         state = self._execute(graph, initial)
+
+        self._guard_outputs(evidence, state)
 
         return AgentRun(
             brief=brief,
@@ -93,6 +105,35 @@ class ProductDiscoveryPipeline:
             except ImportError as exc:
                 logger.warning("LangGraph unavailable (%s); using the built-in state machine.", exc)
         return graph.run(initial)
+
+    def _guard_inputs(self, brief: ProductBrief, evidence: list[EvidenceItem]) -> None:
+        """Screen brief + evidence for PII and prompt injection (records spans)."""
+        guards = GuardrailPipeline([PiiRedactionGuard(), PromptInjectionGuard()], trace=self.trace)
+        text = " ".join([brief.goal, *brief.constraints, *(item.text for item in evidence)])
+        results = guards.run(GuardrailInput(text=text), stage="input")
+        if guards.is_blocked(results):
+            blocked = [r.name for r in results if not r.passed]
+            logger.warning("Input guardrails flagged a blocking issue: %s", blocked)
+
+    def _guard_outputs(self, evidence: list[EvidenceItem], state: State) -> None:
+        """Verify each generated direction cites real evidence (records spans)."""
+        available = [item.id for item in evidence]
+        guards = GuardrailPipeline([CitationRequiredGuard(), GroundednessGuard()], trace=self.trace)
+        for direction in state.get("directions", []):
+            results = guards.run(
+                GuardrailInput(
+                    text=direction.one_liner,
+                    citations=list(direction.evidence_ids),
+                    available_evidence=available,
+                ),
+                stage=f"output:{direction.id}",
+            )
+            if guards.is_blocked(results):
+                logger.warning(
+                    "Direction %s failed an output guardrail: %s",
+                    direction.id,
+                    [r.reason for r in results if not r.passed],
+                )
 
     def write_outputs(self, run: AgentRun, output_dir: str | Path) -> None:
         from .render import render_canvas_html, render_handoff_markdown, render_run_markdown
