@@ -14,6 +14,7 @@ from typing import Any
 
 from ..agent_base import BaseAgent
 from ..models import Insight, ProductBrief, ProductDirection
+from ..retrieval.index import EvidenceIndex
 
 # JSON schema advertised to the model when requesting structured output.
 DIRECTIONS_SCHEMA: dict[str, Any] = {
@@ -55,11 +56,12 @@ class IdeationAgent(BaseAgent):
         brief: ProductBrief,
         insights: list[Insight],
         opportunities: list[str],
+        index: EvidenceIndex | None = None,
     ) -> list[ProductDirection]:
         baseline = self._deterministic_directions(brief, insights, opportunities)
         valid_evidence = {eid for insight in insights for eid in insight.evidence_ids}
 
-        system, user = self._prompt(brief, insights, opportunities)
+        system, user = self._prompt(brief, insights, opportunities, index)
         response = self._chat(
             op="ideation.generate",
             system=system,
@@ -83,7 +85,11 @@ class IdeationAgent(BaseAgent):
 
     # -- LLM path ------------------------------------------------------------
     def _prompt(
-        self, brief: ProductBrief, insights: list[Insight], opportunities: list[str]
+        self,
+        brief: ProductBrief,
+        insights: list[Insight],
+        opportunities: list[str],
+        index: EvidenceIndex | None,
     ) -> tuple[str, str]:
         system = (
             "You are a senior product strategist on an enterprise AI team. Given customer "
@@ -97,16 +103,30 @@ class IdeationAgent(BaseAgent):
             for i in insights
         )
         opp_lines = "\n".join(f"- {o}" for o in opportunities)
+        retrieved_block = self._retrieved_block(brief, opportunities, index)
         user = (
             f"Company: {brief.company}\n"
             f"Product: {brief.product}\n"
             f"Target user: {brief.target_user}\n"
             f"Goal: {brief.goal}\n\n"
             f"Insights:\n{insight_lines}\n\n"
-            f"Strategic opportunities:\n{opp_lines}\n\n"
+            f"Strategic opportunities:\n{opp_lines}\n"
+            f"{retrieved_block}\n"
             "Return JSON with a 'directions' array. Only cite evidence ids that appear above."
         )
         return system, user
+
+    def _retrieved_block(
+        self, brief: ProductBrief, opportunities: list[str], index: EvidenceIndex | None
+    ) -> str:
+        if index is None:
+            return ""
+        query = f"{brief.goal} {' '.join(opportunities)}"
+        hits = index.search(query, k=4)
+        if not hits:
+            return ""
+        lines = "\n".join(f"- {h.chunk.id}: {h.chunk.text}" for h in hits)
+        return f"\nRetrieved evidence snippets (cite these ids where relevant):\n{lines}\n"
 
     def _parse_directions(
         self,

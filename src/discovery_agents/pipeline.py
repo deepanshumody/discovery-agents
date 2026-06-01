@@ -20,6 +20,8 @@ from .config import RunConfig
 from .llm import get_client
 from .models import AgentRun, EvidenceItem, ProductBrief
 from .observability.trace import Trace
+from .retrieval.index import EvidenceIndex
+from .tools import EvidenceSearchTool, ToolRegistry
 
 
 class ProductDiscoveryPipeline:
@@ -44,9 +46,13 @@ class ProductDiscoveryPipeline:
         self.memory_agent = DecisionMemoryAgent(self.trace, self.llm)
 
     def run(self, brief: ProductBrief, evidence: list[EvidenceItem]) -> AgentRun:
-        insights = self.evidence_agent.run(evidence)
+        # Build the RAG index + tool registry once per run, then thread them in.
+        self.index = EvidenceIndex.from_evidence(evidence)
+        self.tools = ToolRegistry([EvidenceSearchTool(self.index)])
+
+        insights = self.evidence_agent.run(evidence, index=self.index)
         opportunities = self.strategy_agent.run(brief, insights)
-        directions = self.ideation_agent.run(brief, insights, opportunities)
+        directions = self.ideation_agent.run(brief, insights, opportunities, index=self.index)
         critiques = self.critique_agent.run(directions, evidence)
         canvas_cards = self.canvas_agent.run(directions, critiques)
         selected_direction_id = self.selection_agent.run(critiques)

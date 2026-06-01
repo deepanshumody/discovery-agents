@@ -1,4 +1,10 @@
-"""Evidence-clustering agent."""
+"""Evidence-clustering agent.
+
+Clusters evidence into themes by tag, then augments each theme with
+retrieval: a RAG query over the evidence index surfaces semantically related
+passages (which may live under different tags), and those citation ids are merged
+in. Retrieval is deterministic (HashingEmbedder), so keyless runs stay stable.
+"""
 
 from __future__ import annotations
 
@@ -7,6 +13,8 @@ from collections import Counter
 
 from ..agent_base import BaseAgent
 from ..models import EvidenceItem, Insight
+from ..observability.trace import TraceSpan
+from ..retrieval.index import EvidenceIndex
 from ._utils import tokenize
 
 
@@ -24,14 +32,22 @@ class EvidenceInsightAgent(BaseAgent):
         ("Tradeoff Critique", ["differentiation", "generic_outputs", "critique"]),
     ]
 
-    def run(self, evidence: list[EvidenceItem]) -> list[Insight]:
+    # Minimum cosine score for a retrieved passage to be merged as a citation.
+    RETRIEVAL_THRESHOLD = 0.05
+
+    def run(
+        self, evidence: list[EvidenceItem], index: EvidenceIndex | None = None
+    ) -> list[Insight]:
+        index = index or EvidenceIndex.from_evidence(evidence)
         insights: list[Insight] = []
         for idx, (title, tags) in enumerate(self.THEMES, start=1):
             items = [item for item in evidence if set(item.tags) & set(tags)]
             if not items:
                 continue
-            evidence_ids = [i.id for i in items]
-            summary = self._summarize_cluster(title, tags, items)
+            tag_ids = [i.id for i in items]
+            retrieved_ids = self._retrieve(index, title, tags, exclude=set(tag_ids))
+            evidence_ids = tag_ids + retrieved_ids
+            summary = self._summarize_cluster(title, tags, items, retrieved_ids)
             confidence = round(
                 min(0.95, 0.50 + 0.07 * len(items) + 0.02 * sum(i.severity for i in items)), 2
             )
@@ -49,13 +65,42 @@ class EvidenceInsightAgent(BaseAgent):
         self.log("Clustered evidence into product-discovery themes", insight_count=len(insights))
         return insights
 
-    def _summarize_cluster(self, title: str, tags: list[str], items: list[EvidenceItem]) -> str:
+    def _retrieve(
+        self, index: EvidenceIndex, title: str, tags: list[str], exclude: set[str]
+    ) -> list[str]:
+        query = f"{title} {' '.join(tags)}"
+        hits = index.search(query, k=3)
+        retrieved = [
+            hit.chunk.id
+            for hit in hits
+            if hit.score >= self.RETRIEVAL_THRESHOLD and hit.chunk.id not in exclude
+        ]
+        self.trace.record(
+            TraceSpan(
+                agent=self.name,
+                op="retrieval",
+                message=f"evidence search for theme '{title}'",
+                payload={
+                    "query": query,
+                    "hits": [(h.chunk.id, round(h.score, 4)) for h in hits],
+                    "merged": retrieved,
+                },
+            )
+        )
+        return retrieved
+
+    def _summarize_cluster(
+        self, title: str, tags: list[str], items: list[EvidenceItem], retrieved_ids: list[str]
+    ) -> str:
         segment_counts = Counter(i.user_segment for i in items)
         top_segments = ", ".join(s for s, _ in segment_counts.most_common(3))
         common_words = Counter(itertools.chain.from_iterable(tokenize(i.text) for i in items))
         keywords = ", ".join(w for w, _ in common_words.most_common(6))
         tag_text = ", ".join(tags)
-        return (
+        summary = (
             f"This theme is supported by {len(items)} evidence item(s) across {top_segments}. "
             f"Relevant tags: {tag_text}. Recurring language centers on: {keywords}."
         )
+        if retrieved_ids:
+            summary += f" Retrieval also surfaced related evidence: {', '.join(retrieved_ids)}."
+        return summary
