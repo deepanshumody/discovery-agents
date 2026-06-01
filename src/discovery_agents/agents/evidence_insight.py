@@ -40,7 +40,7 @@ class EvidenceInsightAgent(BaseAgent):
     ) -> list[Insight]:
         index = index or EvidenceIndex.from_evidence(evidence)
         insights: list[Insight] = []
-        for idx, (title, tags) in enumerate(self.THEMES, start=1):
+        for idx, (title, tags) in enumerate(self._themes_for(evidence), start=1):
             items = [item for item in evidence if set(item.tags) & set(tags)]
             if not items:
                 continue
@@ -64,6 +64,17 @@ class EvidenceInsightAgent(BaseAgent):
 
         self.log("Clustered evidence into product-discovery themes", insight_count=len(insights))
         return insights
+
+    def _themes_for(self, evidence: list[EvidenceItem]) -> list[tuple[str, list[str]]]:
+        """Use the curated THEMES when they cover the evidence; otherwise derive themes
+        from the evidence's own most-frequent tags (so arbitrary real data still clusters)."""
+        covered = sum(
+            1 for item in evidence if any(set(item.tags) & set(tags) for _, tags in self.THEMES)
+        )
+        if evidence and covered >= 0.5 * len(evidence):
+            return self.THEMES
+        counts: Counter[str] = Counter(tag for item in evidence for tag in item.tags)
+        return [(tag.replace("_", " ").title(), [tag]) for tag, _ in counts.most_common(6)]
 
     def _retrieve(
         self, index: EvidenceIndex, title: str, tags: list[str], exclude: set[str]

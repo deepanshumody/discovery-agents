@@ -14,6 +14,7 @@ import sys
 from pathlib import Path
 
 from .config import RunConfig
+from .models import EvidenceItem, ProductBrief
 from .pipeline import ProductDiscoveryPipeline
 from .sample_data import SAMPLE_BRIEF, SAMPLE_EVIDENCE
 
@@ -27,6 +28,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="LLM provider: mock (default) | anthropic | cohere | openai.",
     )
     parser.add_argument("--model", default=None, help="Override the provider's default model.")
+    parser.add_argument(
+        "--dataset",
+        default="sample",
+        choices=["sample", "banking77"],
+        help="Evidence source: the built-in sample, or real Banking77 support messages.",
+    )
     parser.add_argument(
         "--no-rag", action="store_true", help="Disable retrieval grounding for this run."
     )
@@ -85,9 +92,18 @@ def _run_eval(config: RunConfig, *, update_baseline: bool) -> int:
     return 1
 
 
-def _run_demo(config: RunConfig, output: str) -> int:
+def _load_inputs(dataset: str) -> tuple[ProductBrief, list[EvidenceItem]]:
+    if dataset == "banking77":
+        from .mlinfra.agent_data import evidence_from_banking77
+
+        return evidence_from_banking77()
+    return SAMPLE_BRIEF, SAMPLE_EVIDENCE
+
+
+def _run_demo(config: RunConfig, output: str, dataset: str = "sample") -> int:
+    brief, evidence = _load_inputs(dataset)
     pipeline = ProductDiscoveryPipeline(config)
-    run = pipeline.run(SAMPLE_BRIEF, SAMPLE_EVIDENCE)
+    run = pipeline.run(brief, evidence)
     output_dir = Path(output)
     pipeline.write_outputs(run, output_dir)
 
@@ -116,7 +132,7 @@ def main() -> None:
     config = _config_from_args(args)
     if args.eval:
         sys.exit(_run_eval(config, update_baseline=args.update_baseline))
-    sys.exit(_run_demo(config, args.output))
+    sys.exit(_run_demo(config, args.output, args.dataset))
 
 
 if __name__ == "__main__":
