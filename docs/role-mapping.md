@@ -53,8 +53,9 @@ roles. Each requirement maps to runnable, tested code.
 
 | Requirement | Where it lives |
 |---|---|
-| PyTorch: custom training loops, distributed training, low-level perf | `mlinfra/train/loop.py`, `mlinfra/train/distributed.py` (DDP, gloo/nccl) |
-| Reliability/continuity of large training runs | `mlinfra/train/checkpoint.py` — atomic, resumable, SIGTERM-safe; resume reproduces the trajectory (tested) |
+| **Measured result on real data** | **Banking77 retrieval** ([`../benchmark/RESULTS.md`](../benchmark/RESULTS.md)): trained embedder beats the lexical baseline — recall@1 0.830 vs 0.769, **mAP 0.775 vs 0.503** |
+| PyTorch: custom training loops, distributed training, low-level perf | `mlinfra/train/loop.py`, `mlinfra/train/distributed.py` (DDP, gloo/nccl); SupCon training in `retrieval_eval.py` |
+| Reliability/continuity of large training runs | `mlinfra/train/checkpoint.py` — atomic, fsync-durable, resumable, SIGTERM-safe; resume reproduces the trajectory (tested) |
 | GPU-native data I/O; Zarr/HDF5/TensorStore; multi-dim tensors | `mlinfra/store/` (Numpy/Zarr/HDF5), `mlinfra/data/loader.py` |
 | I/O performance benchmarking at scale | `mlinfra/bench/io_benchmark.py` (samples/s, MB/s, p50/p95) |
 | Distributed computing (Spark/Dask/Ray) | `mlinfra/curation/executors.py` (Local + Dask; Ray = future work) |
@@ -64,9 +65,10 @@ roles. Each requirement maps to runnable, tested code.
 | AI agent frameworks (a plus) | the agentic pipeline (above) consumes the trained embedder |
 
 ```bash
-pip install -e ".[ml,dask]"
-python -m discovery_agents.mlinfra.cli train --smoke   # curate -> train -> export (CPU)
-python -m discovery_agents.mlinfra.cli bench           # Numpy vs Zarr vs HDF5 I/O
+pip install -e ".[ml,dask,benchmark]"
+python -m discovery_agents.mlinfra.cli benchmark --full --with-st   # the headline result
+python -m discovery_agents.mlinfra.cli train --smoke               # curate -> train -> export (CPU)
+python -m discovery_agents.mlinfra.cli io-bench                     # Numpy vs Zarr vs HDF5 I/O
 ```
 
 Deferred to future work (documented in the spec): TensorStore backend, Ray executor, FSDP, and a

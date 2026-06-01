@@ -24,10 +24,32 @@ flowchart LR
 ```bash
 pip install -e ".[ml,dask]"
 python -m discovery_agents.mlinfra.cli train --smoke   # curate -> train -> export, end to end
-python -m discovery_agents.mlinfra.cli bench           # Numpy vs Zarr vs HDF5 read throughput
+python -m discovery_agents.mlinfra.cli io-bench        # Numpy vs Zarr vs HDF5 read throughput
 ```
 
-Granular commands: `curate`, `train`, `bench`, `export` (also `make -f deploy/Makefile <target>`).
+Granular commands: `curate`, `train`, `io-bench`, `benchmark`, `export` (also
+`make -f deploy/Makefile <target>`).
+
+## Headline result: Banking77 retrieval benchmark
+
+The trained embedder is **load-bearing** — it beats the lexical baseline on a real task
+([`../benchmark/RESULTS.md`](../benchmark/RESULTS.md)):
+
+```bash
+pip install -e ".[ml,dask,benchmark]"
+python -m discovery_agents.mlinfra.cli benchmark --full --with-st   # ~80s on CPU
+```
+
+| embedder | recall@1 | MRR | mAP |
+|---|---|---|---|
+| hashing (lexical baseline) | 0.769 | 0.835 | 0.503 |
+| torch (supervised contrastive) | **0.830** | **0.865** | **0.775** |
+| sentence-transformers (reference) | 0.921 | 0.942 | 0.842 |
+
+Relevant = same intent over 9,993 train / 3,076 test utterances, 77 intents. The trained model
+(supervised contrastive on the platform) wins recall@1 / MRR / mAP; lexical edges out recall@5/@10
+(it casts a wider lexical net), and a pretrained model is the reference upper bound — an honest,
+reproducible comparison.
 
 ## Use the trained embedder in the agent pipeline
 

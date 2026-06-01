@@ -115,15 +115,33 @@ platform and served back through the same `Embedder` protocol:
 - **MLOps** — experiment/artifact tracking (**MLflow** or a keyless JSON tracker), a
   **Dockerfile**, `docker-compose`, and a **Kubernetes** Indexed-Job training manifest.
 
+### Benchmark result — it actually works
+
+On a **real** task (Banking77 intent retrieval, 9,993 train / 3,076 test, 77 intents; relevant
+= same intent), the trained embedder **beats the lexical baseline** — a measured, reproducible
+result, not a demo ([`benchmark/RESULTS.md`](benchmark/RESULTS.md)):
+
+| embedder | recall@1 | recall@5 | MRR | mAP |
+|---|---|---|---|---|
+| hashing (lexical baseline) | 0.769 | 0.922 | 0.835 | 0.503 |
+| **torch (supervised contrastive)** | **0.830** | 0.911 | **0.865** | **0.775** |
+| sentence-transformers (reference) | 0.921 | 0.970 | 0.942 | 0.842 |
+
+The trained model wins recall@1 (+6pts), MRR, and **mAP (+27pts)** over lexical (which edges it
+out on recall@5/@10); a pretrained `sentence-transformers` model is shown as a reference upper
+bound. Reproduce in ~80s on CPU:
+
 ```bash
-pip install -e ".[ml,dask]"
-python -m discovery_agents.mlinfra.cli train --smoke    # curate -> train -> export, CPU
-DISCOVERY_EMBEDDER=torch discovery-agents               # the agent RAG now uses the trained embedder
+pip install -e ".[ml,dask,benchmark]"
+python -m discovery_agents.mlinfra.cli benchmark --full --with-st   # writes benchmark/RESULTS.md
+python -m discovery_agents.mlinfra.cli train --smoke                # curate -> train -> export, CPU
+DISCOVERY_EMBEDDER=torch discovery-agents                           # the agent RAG uses the trained embedder
+discovery-agents --dataset banking77                                # run the agents on real support messages
 ```
 
-Runs **CPU-first on synthetic data**, but is written for multi-GPU / petabyte scale. Full
-details in [`docs/ml-platform.md`](docs/ml-platform.md). *(This platform targets ML-infra
-roles; the agentic stack above targets applied-AI roles — the repo serves both.)*
+Trains **CPU-first**, but is written for multi-GPU / petabyte scale. Full details in
+[`docs/ml-platform.md`](docs/ml-platform.md). *(This platform targets ML-infra roles; the agentic
+stack above targets applied-AI roles — the repo serves both.)*
 
 ## How it maps to the role
 
