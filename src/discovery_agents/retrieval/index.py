@@ -17,6 +17,7 @@ class EvidenceIndex:
     def __init__(self, embedder: Embedder | None = None, store: VectorStore | None = None) -> None:
         self.embedder: Embedder = embedder or HashingEmbedder()
         self.store: VectorStore = store or InMemoryVectorStore()
+        self.ids: list[str] = []  # every indexed evidence id (the full corpus)
 
     @classmethod
     def from_evidence(
@@ -47,6 +48,9 @@ class EvidenceIndex:
         for chunk, vector in zip(chunks, vectors):
             chunk.vector = vector
         self.store.upsert(chunks)
+        for chunk in chunks:
+            if chunk.id not in self.ids:
+                self.ids.append(chunk.id)
 
     def search(self, query: str, k: int = 3) -> list[ScoredChunk]:
         query_vector = self.embedder.embed(query)

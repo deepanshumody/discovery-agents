@@ -7,13 +7,14 @@
     "handoff_completeness": 1.0,
     "selection_validity": 1.0,
     "guardrail_pass_rate": 1.0,
+    "guardrail_coverage": 1.0,
     "faithfulness": 1.0,
-    "relevance": 0.0786,
+    "relevance": 0.1826,
     "helpfulness": 1.0
   },
   "ops": {
     "total_tokens": 1260.0,
     "cost_usd": 0.0,
-    "latency_ms": 4.943
+    "latency_ms": 4.781
   }
 }

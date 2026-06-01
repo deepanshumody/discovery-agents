@@ -52,6 +52,7 @@ class CalculatorTool:
         try:
             tree = ast.parse(expression, mode="eval")
             result = _evaluate(tree.body)
-        except (ValueError, SyntaxError, ZeroDivisionError, TypeError) as exc:
+        except (ValueError, SyntaxError, ArithmeticError, TypeError) as exc:
+            # ArithmeticError covers ZeroDivisionError and OverflowError (e.g. 10.0**400).
             return ToolResult(ok=False, error=f"cannot evaluate: {exc}")
         return ToolResult(ok=True, data={"expression": expression, "result": result})

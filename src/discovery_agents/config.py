@@ -28,7 +28,12 @@ PROVIDER_KEY_ENV: dict[str, str] = {
 
 @dataclass
 class RunConfig:
-    """Everything needed to execute one pipeline run."""
+    """Everything needed to execute one pipeline run.
+
+    `max_steps` and `token_budget` bound the ReAct `LLMAgent` loop (`runtime/agent.py`);
+    the discovery graph's agents are single-turn, so those knobs apply to tool-using
+    ReAct agents rather than the default pipeline path.
+    """
 
     provider: str = "mock"
     model: str | None = None
@@ -42,12 +47,14 @@ class RunConfig:
     @classmethod
     def from_env(cls) -> RunConfig:
         """Build a config from DISCOVERY_* environment variables."""
+        token_budget_env = os.environ.get("DISCOVERY_TOKEN_BUDGET")
         return cls(
             provider=os.environ.get("DISCOVERY_PROVIDER", "mock").lower(),
             model=os.environ.get("DISCOVERY_MODEL") or None,
             temperature=float(os.environ.get("DISCOVERY_TEMPERATURE", "0.2")),
             max_tokens=int(os.environ.get("DISCOVERY_MAX_TOKENS", "1024")),
             max_steps=int(os.environ.get("DISCOVERY_MAX_STEPS", "6")),
+            token_budget=int(token_budget_env) if token_budget_env else None,
             use_rag=os.environ.get("DISCOVERY_USE_RAG", "1") != "0",
             use_langgraph=os.environ.get("DISCOVERY_USE_LANGGRAPH", "0") == "1",
         )

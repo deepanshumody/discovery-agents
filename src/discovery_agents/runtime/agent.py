@@ -91,7 +91,10 @@ class LLMAgent:
                     stop_reason="final_answer",
                 )
 
-            messages.append(Message(role="assistant", content=response.text))
+            # Only carry assistant text forward; empty content blocks are rejected by
+            # some provider APIs (e.g. Anthropic) on tool-only turns.
+            if response.text:
+                messages.append(Message(role="assistant", content=response.text))
             for call in response.tool_calls:
                 result = self.tools.run(call.name, call.arguments)
                 steps.append(
@@ -120,7 +123,16 @@ class LLMAgent:
                 )
 
             if self.token_budget is not None and tokens_used >= self.token_budget:
-                return AgentResult(answer="", steps=steps, stop_reason="budget_exhausted")
+                # Make one final no-tools call so the work done so far still yields an
+                # answer instead of being discarded.
+                final = self.llm.chat(messages)
+                self.trace.record_llm(self.name, "react.final", final)
+                return AgentResult(
+                    answer=final.text,
+                    steps=steps,
+                    structured=final.structured,
+                    stop_reason="budget_exhausted",
+                )
 
         return AgentResult(answer="", steps=steps, stop_reason="max_steps")
 

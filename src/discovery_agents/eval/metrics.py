@@ -74,6 +74,15 @@ def guardrail_pass_rate(trace: Trace) -> float:
     return round(sum(1 for e in events if e.get("passed")) / len(events), 4)
 
 
+def guardrail_coverage(trace: Trace) -> float:
+    """1.0 if guardrails actually ran (recorded spans), else 0.0.
+
+    Gated separately from the pass rate so a regression that silently removes the
+    guardrail wiring is caught — the pass rate alone reads 1.0 when no guards ran.
+    """
+    return 1.0 if any(span.op == "guardrail" for span in trace.spans) else 0.0
+
+
 def quality_metrics(run: AgentRun, trace: Trace) -> dict[str, float]:
     """Deterministic, CI-gateable quality metrics."""
     return {
@@ -84,6 +93,7 @@ def quality_metrics(run: AgentRun, trace: Trace) -> dict[str, float]:
         "handoff_completeness": handoff_completeness(run),
         "selection_validity": selection_validity(run),
         "guardrail_pass_rate": guardrail_pass_rate(trace),
+        "guardrail_coverage": guardrail_coverage(trace),
     }
 
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..agents._utils import tokenize
 from ..llm.base import LLMClient
 from ..llm.types import Message
 from ..models import AgentRun, ProductDirection
@@ -52,8 +53,8 @@ class LLMJudge:
         if self.trace is not None:
             self.trace.record_llm(self.name, "judge.score", response, message="LLM-as-judge")
 
-        if response.structured and all(k in response.structured for k in _METRICS):
-            return {m: _clamp(response.structured[m]) for m in _METRICS}
+        if response.structured and all(_is_number(response.structured.get(k)) for k in _METRICS):
+            return {m: round(_clamp(response.structured[m]), 4) for m in _METRICS}
         return self._heuristic(run, selected)
 
     # -- helpers -------------------------------------------------------------
@@ -88,10 +89,23 @@ class LLMJudge:
 
         # Relevance via embedding cosine similarity between the goal/themes and the
         # direction text — a semantic, deterministic proxy that reuses the RAG embedder.
+        # Content-word overlap: strip stopwords, split hyphenated compounds, and lightly
+        # singularize so genuine topical matches (evidence-grounded->evidence,
+        # customers->customer) surface, instead of incidental stopword overlap.
         embedder = HashingEmbedder()
-        goal_text = f"{run.brief.goal} {' '.join(run.brief.strategic_themes)}"
-        direction_text = (
-            f"{selected.title} {selected.one_liner} {selected.core_loop} {selected.differentiator}"
+        brief = run.brief
+        goal_text = " ".join(
+            _content_tokens(
+                f"{brief.product} {brief.target_user} {brief.goal} "
+                f"{' '.join(brief.constraints)} {' '.join(brief.strategic_themes)}"
+            )
+        )
+        direction_text = " ".join(
+            _content_tokens(
+                f"{selected.title} {selected.one_liner} {selected.core_loop} "
+                f"{selected.why_now} {selected.differentiator} "
+                f"{' '.join(selected.implementation_notes)}"
+            )
         )
         relevance = cosine_similarity(embedder.embed(goal_text), embedder.embed(direction_text))
 
@@ -108,6 +122,29 @@ class LLMJudge:
             "relevance": round(_clamp(relevance), 4),
             "helpfulness": round(_clamp(helpfulness), 4),
         }
+
+
+def _content_tokens(text: str) -> list[str]:
+    """Stopword-stripped tokens, hyphen-split and lightly singularized for matching."""
+    out: list[str] = []
+    for token in tokenize(text):
+        for part in token.split("-"):
+            if len(part) > 4 and part.endswith("s"):
+                part = part[:-1]  # crude singularization: customers -> customer
+            if len(part) > 2:
+                out.append(part)
+    return out
+
+
+def _is_number(value: Any) -> bool:
+    """True for real numeric values (and numeric strings), not bools/None."""
+    if value is None or isinstance(value, bool):
+        return False
+    try:
+        float(value)
+    except (TypeError, ValueError):
+        return False
+    return True
 
 
 def _clamp(value: Any) -> float:

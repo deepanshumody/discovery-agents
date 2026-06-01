@@ -16,10 +16,10 @@ SearchBackend = Callable[[str, int], list[dict[str, Any]]]
 
 
 def _deterministic_backend(query: str, k: int) -> list[dict[str, Any]]:
-    digest = hashlib.sha1(query.encode("utf-8")).hexdigest()
     results: list[dict[str, Any]] = []
     for i in range(k):
-        slug = f"{digest[i * 4 : i * 4 + 8]}"
+        # Hash per (query, index) so every slug is distinct and non-empty for any k.
+        slug = hashlib.sha1(f"{query}:{i}".encode()).hexdigest()[:10]
         results.append(
             {
                 "title": f"{query.strip().title()} — reference {i + 1}",

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import replace
 from pathlib import Path
 
 from .agents import (
@@ -59,6 +60,10 @@ class ProductDiscoveryPipeline:
         self.memory_agent = DecisionMemoryAgent(self.trace, self.llm)
 
     def run(self, brief: ProductBrief, evidence: list[EvidenceItem]) -> AgentRun:
+        # Screen + redact inputs first, then build everything from the sanitized data so
+        # any detected PII never reaches the model or the retrieval index.
+        brief, evidence = self._guard_inputs(brief, evidence)
+
         # Build the RAG index + tool registry once per run, then thread them in.
         self.index = EvidenceIndex.from_evidence(evidence)
         self.tools = ToolRegistry(
@@ -77,8 +82,6 @@ class ProductDiscoveryPipeline:
             eval_agent=self.eval_agent,
             memory_agent=self.memory_agent,
         )
-        self._guard_inputs(brief, evidence)
-
         initial: State = {"brief": brief, "evidence": evidence, "index": self.index}
         state = self._execute(graph, initial)
 
@@ -108,14 +111,30 @@ class ProductDiscoveryPipeline:
                 logger.warning("LangGraph unavailable (%s); using the built-in state machine.", exc)
         return graph.run(initial)
 
-    def _guard_inputs(self, brief: ProductBrief, evidence: list[EvidenceItem]) -> None:
-        """Screen brief + evidence for PII and prompt injection (records spans)."""
-        guards = GuardrailPipeline([PiiRedactionGuard(), PromptInjectionGuard()], trace=self.trace)
+    def _guard_inputs(
+        self, brief: ProductBrief, evidence: list[EvidenceItem]
+    ) -> tuple[ProductBrief, list[EvidenceItem]]:
+        """Screen brief + evidence for injection, redact PII, and return sanitized copies.
+
+        Records a guardrail span and returns brief/evidence with any detected PII replaced,
+        so the redacted text is what actually flows into the index and the model.
+        """
+        pii = PiiRedactionGuard()
+        guards = GuardrailPipeline([pii, PromptInjectionGuard()], trace=self.trace)
         text = " ".join([brief.goal, *brief.constraints, *(item.text for item in evidence)])
         results = guards.run(GuardrailInput(text=text), stage="input")
         if guards.is_blocked(results):
             blocked = [r.name for r in results if not r.passed]
             logger.warning("Input guardrails flagged a blocking issue: %s", blocked)
+
+        def redact(value: str) -> str:
+            return pii.check(GuardrailInput(text=value)).redacted_text or value
+
+        brief = replace(
+            brief, goal=redact(brief.goal), constraints=[redact(c) for c in brief.constraints]
+        )
+        evidence = [replace(item, text=redact(item.text)) for item in evidence]
+        return brief, evidence
 
     def _guard_outputs(self, evidence: list[EvidenceItem], state: State) -> None:
         """Verify each generated direction cites real evidence (records spans)."""

@@ -59,7 +59,10 @@ class IdeationAgent(BaseAgent):
         index: EvidenceIndex | None = None,
     ) -> list[ProductDirection]:
         baseline = self._deterministic_directions(brief, insights, opportunities)
-        valid_evidence = {eid for insight in insights for eid in insight.evidence_ids}
+        # Validate citations against the FULL evidence corpus (via the index), not just
+        # the insight-covered subset, so legitimate grounded citations aren't dropped.
+        valid_evidence = set(index.ids) if index is not None else set()
+        valid_evidence |= {eid for insight in insights for eid in insight.evidence_ids}
 
         system, user = self._prompt(brief, insights, opportunities, index)
         response = self._chat(

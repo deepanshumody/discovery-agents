@@ -46,6 +46,7 @@ class CohereClient:
             "model": self.model,
             "messages": payload,
             "temperature": self.config.temperature,
+            "max_tokens": self.config.max_tokens,
         }
         if tools:
             kwargs["tools"] = [
