@@ -44,6 +44,14 @@ langgraph = ["langgraph>=0.2"]
 vectordb = ["pinecone-client>=4", "weaviate-client>=4"]
 # Model Context Protocol server.
 mcp = ["mcp>=1.0"]
+# ML-infrastructure platform (mlinfra/): trainable retrieval embedder.
+# Light, CI-runnable defaults; heavier backends are separate extras below.
+ml = ["torch>=2.1", "numpy>=1.24", "zarr>=2.16,<3", "h5py>=3.9", "psutil>=5.9"]
+dask = ["dask[distributed]>=2024.1"]
+mlflow = ["mlflow>=2.10"]
+# Declared for future work (lazy-imported, not exercised in CI).
+ray = ["ray>=2.9"]
+tensorstore = ["tensorstore>=0.1.50"]
 # Developer tooling.
 dev = ["pytest>=7", "ruff>=0.6", "mypy>=1.8"]
 # Everything, for a full local environment.

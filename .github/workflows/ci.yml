@@ -47,10 +47,33 @@ jobs:
         run: python -m discovery_agents.cli --output outputs/ci
 
       - name: Eval regression gate (keyless)
-        # The eval harness lands in Stage 5; this step is a guarded no-op until then.
+        run: python -m discovery_agents.cli --eval
+
+  ml:
+    name: ml-infra (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install (editable, ml + dask + dev extras, CPU torch)
         run: |
-          if python -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('discovery_agents.eval') else 1)"; then
-            python -m discovery_agents.cli --eval
-          else
-            echo "eval harness not present yet — skipping"
-          fi
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,ml,dask]"
+
+      - name: Mypy (mlinfra typed against real torch)
+        run: mypy
+
+      - name: Pytest (mlinfra)
+        run: pytest -q tests/mlinfra
+
+      - name: Train smoke (curate -> train 2 steps -> bench, CPU)
+        run: python -m discovery_agents.mlinfra.cli train --smoke
