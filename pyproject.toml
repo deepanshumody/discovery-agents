@@ -108,3 +108,21 @@ no_implicit_optional = true
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 check_untyped_defs = true
+
+# Heavy ML libraries: treat as opaque (don't follow into their sources). torch's
+# internals use 3.10+ syntax that breaks analysis under our 3.9 target, and these
+# libraries' stubs are heavy/incomplete; our own code stays fully typed regardless.
+[[tool.mypy.overrides]]
+module = [
+    "torch.*",
+    "zarr.*",
+    "h5py.*",
+    "dask.*",
+    "distributed.*",
+    "mlflow.*",
+    "ray.*",
+    "tensorstore.*",
+    "numcodecs.*",
+]
+follow_imports = "skip"
+ignore_missing_imports = true
