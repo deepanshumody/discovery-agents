@@ -99,6 +99,54 @@ class Trainer:
             step=self.step,
         )
 
+    def supervised_step(self, tokens: torch.Tensor, labels: torch.Tensor) -> float:
+        """One supervised-contrastive step over a label-aware batch."""
+        from ..model.losses import supervised_contrastive
+
+        self.model.train()
+        tokens = to_device(tokens, self.device)
+        labels = to_device(labels, self.device)
+        embeddings = self.model(tokens)
+        loss = supervised_contrastive(embeddings, labels, self.config.temperature)
+
+        self.optimizer.zero_grad(set_to_none=True)
+        loss.backward()
+        nn.utils.clip_grad_norm_(self.module.parameters(), self.config.grad_clip)
+        self.last_lr = float(self.optimizer.param_groups[0]["lr"])
+        self.optimizer.step()
+        self.scheduler.step()
+        self.step += 1
+        return float(loss.detach().item())
+
+    def fit_supervised(
+        self,
+        tokens: torch.Tensor,
+        labels: torch.Tensor,
+        *,
+        classes_per_batch: int = 16,
+        samples_per_class: int = 4,
+        steps: int | None = None,
+        seed: int = 7,
+    ) -> dict[str, Any]:
+        """Train with supervised contrastive loss using a label-aware batch sampler."""
+        from ..data.sampler import LabelBatchSampler
+
+        steps = steps or self.config.steps
+        sampler = LabelBatchSampler(
+            labels.tolist(),
+            classes_per_batch=classes_per_batch,
+            samples_per_class=samples_per_class,
+            steps=steps,
+            seed=seed,
+        )
+        losses: list[float] = []
+        for batch_indices in sampler:
+            index = torch.tensor(batch_indices, dtype=torch.long)
+            losses.append(self.supervised_step(tokens[index], labels[index]))
+            if self.tracker is not None and self.step % self.config.log_every == 0:
+                self.tracker.log_metrics({"loss": losses[-1], "lr": self.last_lr}, self.step)
+        return {"losses": losses, "final_loss": losses[-1] if losses else None, "step": self.step}
+
     def _cycle(self, dataloader: DataLoader[torch.Tensor]) -> Iterator[torch.Tensor]:
         while True:
             yield from dataloader

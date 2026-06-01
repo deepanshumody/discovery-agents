@@ -3,6 +3,6 @@
 from __future__ import annotations
 
 from .encoder import TextEncoder
-from .losses import contrastive_accuracy, info_nce
+from .losses import contrastive_accuracy, info_nce, supervised_contrastive
 
-__all__ = ["TextEncoder", "contrastive_accuracy", "info_nce"]
+__all__ = ["TextEncoder", "contrastive_accuracy", "info_nce", "supervised_contrastive"]
