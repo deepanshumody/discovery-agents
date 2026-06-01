@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Dict, Iterable, List
+from collections.abc import Iterable
 
 from ..agent_base import BaseAgent
 from ..models import Insight, ProductBrief, ProductDirection
@@ -17,10 +17,10 @@ class IdeationAgent(BaseAgent):
     def run(
         self,
         brief: ProductBrief,
-        insights: List[Insight],
-        opportunities: List[str],
-    ) -> List[ProductDirection]:
-        evidence_by_tag: Dict[str, List[str]] = defaultdict(list)
+        insights: list[Insight],
+        opportunities: list[str],
+    ) -> list[ProductDirection]:
+        evidence_by_tag: dict[str, list[str]] = defaultdict(list)
         for insight in insights:
             for tag in insight.tags:
                 evidence_by_tag[tag].extend(insight.evidence_ids)
@@ -36,7 +36,9 @@ class IdeationAgent(BaseAgent):
                     "opportunity zones → team compares and selects a direction."
                 ),
                 why_now="Teams are overwhelmed by text-heavy ideation and need faster visual alignment.",
-                evidence_ids=_pick_evidence(evidence_by_tag, ["blank_state", "alignment", "decision"], fallback=["E1", "E2"]),
+                evidence_ids=_pick_evidence(
+                    evidence_by_tag, ["blank_state", "alignment", "decision"], fallback=["E1", "E2"]
+                ),
                 differentiator="Optimizes for deciding what to build, not generating a single polished mockup.",
                 implementation_notes=[
                     "Represent opportunities as cards with evidence, score, risk, and next step.",
@@ -60,7 +62,11 @@ class IdeationAgent(BaseAgent):
                     "summarizes risks, missing context, and next experiments."
                 ),
                 why_now="Prompt-to-prototype tools create artifacts, but teams still need tradeoff reasoning.",
-                evidence_ids=_pick_evidence(evidence_by_tag, ["critique", "differentiation", "implementation"], fallback=["E4", "E6"]),
+                evidence_ids=_pick_evidence(
+                    evidence_by_tag,
+                    ["critique", "differentiation", "implementation"],
+                    fallback=["E4", "E6"],
+                ),
                 differentiator="Makes product reasoning visible before design or engineering commitment.",
                 implementation_notes=[
                     "Use role-specific prompts and structured scorecards.",
@@ -84,7 +90,11 @@ class IdeationAgent(BaseAgent):
                     "constraints → future generations become more context-aware."
                 ),
                 why_now="Generic AI design tools often miss company-specific judgment and previous decisions.",
-                evidence_ids=_pick_evidence(evidence_by_tag, ["brand_fit", "context", "learning_loop"], fallback=["E3", "E5"]),
+                evidence_ids=_pick_evidence(
+                    evidence_by_tag,
+                    ["brand_fit", "context", "learning_loop"],
+                    fallback=["E3", "E5"],
+                ),
                 differentiator="Remembers product judgment, not just a design system.",
                 implementation_notes=[
                     "Store entities: customer pain, persona, decision, feature, rejected idea, shipped result.",
@@ -108,7 +118,9 @@ class IdeationAgent(BaseAgent):
                     "analytics events, and acceptance criteria → engineer or coding agent builds."
                 ),
                 why_now="AI prototypes are only valuable if they convert into buildable product work.",
-                evidence_ids=_pick_evidence(evidence_by_tag, ["handoff", "implementation"], fallback=["E4"]),
+                evidence_ids=_pick_evidence(
+                    evidence_by_tag, ["handoff", "implementation"], fallback=["E4"]
+                ),
                 differentiator="Bridges product discovery and implementation instead of stopping at mockups.",
                 implementation_notes=[
                     "Generate API/data assumptions and UI states.",
@@ -132,7 +144,9 @@ class IdeationAgent(BaseAgent):
                     "eval agent updates future scoring and generation strategy."
                 ),
                 why_now="Creative AI quality is hard to measure unless user behavior becomes part of evaluation.",
-                evidence_ids=_pick_evidence(evidence_by_tag, ["selection", "feedback", "learning_loop"], fallback=["E5"]),
+                evidence_ids=_pick_evidence(
+                    evidence_by_tag, ["selection", "feedback", "learning_loop"], fallback=["E5"]
+                ),
                 differentiator="Measures product usefulness, not only output polish.",
                 implementation_notes=[
                     "Instrument idea_selected, idea_edited, idea_shared, spec_exported, feature_built events.",
@@ -151,11 +165,13 @@ class IdeationAgent(BaseAgent):
         return directions
 
 
-def _pick_evidence(evidence_by_tag: Dict[str, List[str]], tags: Iterable[str], fallback: List[str]) -> List[str]:
-    picked: List[str] = []
+def _pick_evidence(
+    evidence_by_tag: dict[str, list[str]], tags: Iterable[str], fallback: list[str]
+) -> list[str]:
+    picked: list[str] = []
     for tag in tags:
         picked.extend(evidence_by_tag.get(tag, []))
-    deduped: List[str] = []
+    deduped: list[str] = []
     for item in picked or fallback:
         if item not in deduped:
             deduped.append(item)

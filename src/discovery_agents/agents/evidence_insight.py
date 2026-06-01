@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import itertools
 from collections import Counter
-from typing import List
 
 from ..agent_base import BaseAgent
 from ..models import EvidenceItem, Insight
@@ -25,15 +24,17 @@ class EvidenceInsightAgent(BaseAgent):
         ("Tradeoff Critique", ["differentiation", "generic_outputs", "critique"]),
     ]
 
-    def run(self, evidence: List[EvidenceItem]) -> List[Insight]:
-        insights: List[Insight] = []
+    def run(self, evidence: list[EvidenceItem]) -> list[Insight]:
+        insights: list[Insight] = []
         for idx, (title, tags) in enumerate(self.THEMES, start=1):
             items = [item for item in evidence if set(item.tags) & set(tags)]
             if not items:
                 continue
             evidence_ids = [i.id for i in items]
             summary = self._summarize_cluster(title, tags, items)
-            confidence = round(min(0.95, 0.50 + 0.07 * len(items) + 0.02 * sum(i.severity for i in items)), 2)
+            confidence = round(
+                min(0.95, 0.50 + 0.07 * len(items) + 0.02 * sum(i.severity for i in items)), 2
+            )
             insights.append(
                 Insight(
                     id=f"I{idx}",
@@ -48,7 +49,7 @@ class EvidenceInsightAgent(BaseAgent):
         self.log("Clustered evidence into product-discovery themes", insight_count=len(insights))
         return insights
 
-    def _summarize_cluster(self, title: str, tags: List[str], items: List[EvidenceItem]) -> str:
+    def _summarize_cluster(self, title: str, tags: list[str], items: list[EvidenceItem]) -> str:
         segment_counts = Counter(i.user_segment for i in items)
         top_segments = ", ".join(s for s, _ in segment_counts.most_common(3))
         common_words = Counter(itertools.chain.from_iterable(tokenize(i.text) for i in items))

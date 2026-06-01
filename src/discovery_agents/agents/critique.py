@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import List
-
 from ..agent_base import BaseAgent
 from ..models import CritiqueScore, EvidenceItem, ProductDirection
 
@@ -13,15 +11,29 @@ class CritiqueAgent(BaseAgent):
 
     name = "CritiqueAgent"
 
-    def run(self, directions: List[ProductDirection], evidence: List[EvidenceItem]) -> List[CritiqueScore]:
+    def run(
+        self, directions: list[ProductDirection], evidence: list[EvidenceItem]
+    ) -> list[CritiqueScore]:
         evidence_ids = {item.id for item in evidence}
-        critiques: List[CritiqueScore] = []
+        critiques: list[CritiqueScore] = []
         for direction in directions:
             coverage = len(set(direction.evidence_ids) & evidence_ids)
             customer_alignment = min(5, 2 + coverage)
-            novelty = 5 if "not" in direction.differentiator.lower() or "judgment" in direction.differentiator.lower() else 4
+            novelty = (
+                5
+                if "not" in direction.differentiator.lower()
+                or "judgment" in direction.differentiator.lower()
+                else 4
+            )
             feasibility = 4 if len(direction.implementation_notes) >= 3 else 3
-            strategic_fit = 5 if any(word in direction.one_liner.lower() for word in ["product", "decision", "handoff", "memory", "evaluate"]) else 4
+            strategic_fit = (
+                5
+                if any(
+                    word in direction.one_liner.lower()
+                    for word in ["product", "decision", "handoff", "memory", "evaluate"]
+                )
+                else 4
+            )
             clarity = 5 if len(direction.one_liner) < 140 else 4
             risk_level = min(5, max(2, len(direction.risks)))
             next_step = _next_step_for(direction.id)

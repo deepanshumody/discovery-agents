@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import List
-
 from ..agent_base import BaseAgent
 from ..models import CanvasCard, CritiqueScore, ProductDirection
 
@@ -13,7 +11,9 @@ class CanvasAgent(BaseAgent):
 
     name = "CanvasAgent"
 
-    def run(self, directions: List[ProductDirection], critiques: List[CritiqueScore]) -> List[CanvasCard]:
+    def run(
+        self, directions: list[ProductDirection], critiques: list[CritiqueScore]
+    ) -> list[CanvasCard]:
         score_by_id = {c.direction_id: c.weighted_score for c in critiques}
         cards = []
         for index, direction in enumerate(directions, start=1):

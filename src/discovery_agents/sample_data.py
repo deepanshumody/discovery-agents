@@ -1,34 +1,39 @@
-"""Sample inputs for a Remy-style product discovery demo.
+"""Sample inputs for an enterprise agentic-workflow discovery demo.
 
-This file avoids hard-coding a proprietary company. It uses a fictional product
-team building a collaborative AI workspace, which is close enough to demonstrate
-product discovery without claiming access to private Remy data.
+The scenario is fictional and self-contained: an enterprise software vendor's
+platform team is deciding which agentic-AI features to ship to its large,
+regulated enterprise customers. It exercises the full pipeline without claiming
+access to any real company's private data.
+
+Evidence tags are chosen so the EvidenceInsightAgent clusters them into the
+themes the downstream agents reason about (exploration, alignment, context,
+handoff, feedback loop, and differentiation).
 """
 
 from __future__ import annotations
 
 from .models import EvidenceItem, ProductBrief
 
-
 SAMPLE_BRIEF = ProductBrief(
-    company="Northstar Labs",
-    product="multiplayer AI workspace for founders and product teams",
-    target_user="early-stage founders, PMs, designers, and product engineers",
+    company="Atlas Industries (Enterprise Platform Group)",
+    product="internal agentic-workflow workspace for the enterprise product organization",
+    target_user="enterprise PMs, staff engineers, and solutions architects",
     goal=(
-        "Help teams discover which product ideas are worth building before they "
-        "commit design or engineering time."
+        "Decide which agentic-AI features are worth building for large, regulated "
+        "enterprise customers before committing design or engineering time."
     ),
     constraints=[
-        "The output must produce multiple directions, not a single design.",
-        "Every direction should cite customer or product evidence.",
-        "The final handoff should be usable by a coding agent or engineer.",
-        "The workflow should support multiplayer decision-making.",
+        "The output must produce multiple evidence-backed directions, not a single design.",
+        "Every direction must cite customer or product evidence (auditable provenance).",
+        "The final handoff must be implementation-ready for an engineer or coding agent.",
+        "Outputs must be safe and reviewable: no unsupported claims, no leaked PII.",
+        "The workflow must support multi-stakeholder decision-making across teams.",
     ],
     strategic_themes=[
-        "product discovery",
-        "visual reasoning",
-        "agentic workflows",
-        "decision memory",
+        "enterprise agentic workflows",
+        "evidence-grounded reasoning",
+        "rigorous evaluation",
+        "auditability and safety",
         "coding-agent handoff",
     ],
 )
@@ -37,69 +42,73 @@ SAMPLE_BRIEF = ProductBrief(
 SAMPLE_EVIDENCE = [
     EvidenceItem(
         id="E1",
-        source="customer_interview",
-        user_segment="seed founder",
+        source="customer_advisory_board",
+        user_segment="enterprise product lead",
         severity=5,
         tags=["blank_state", "ideation", "speed"],
         text=(
-            "I usually know the customer problem but I struggle to turn it into "
-            "several concrete product directions quickly. I want to see options, "
-            "not just read a long answer."
+            "We know the business problem, but turning it into several concrete, "
+            "buildable agent workflows quickly is hard. We want to compare options, "
+            "not read one long recommendation."
         ),
     ),
     EvidenceItem(
         id="E2",
-        source="sales_call",
-        user_segment="product lead",
+        source="enterprise_sales_call",
+        user_segment="VP of engineering",
         severity=4,
         tags=["alignment", "stakeholders", "decision"],
         text=(
-            "Our team wastes too much time debating abstract ideas in docs. We need "
-            "a way to compare alternatives visually and agree on what to test next."
+            "Our teams burn weeks debating approaches in slide decks. We need to "
+            "compare alternatives side by side and align stakeholders on what to "
+            "pilot next."
         ),
     ),
     EvidenceItem(
         id="E3",
-        source="support_ticket",
-        user_segment="designer",
+        source="support_escalation",
+        user_segment="solutions architect",
         severity=3,
         tags=["visual_quality", "brand_fit", "context"],
         text=(
-            "Generated mockups often look polished but miss our product context, "
-            "brand tone, and previous design decisions."
+            "Generated proposals often look polished but miss our domain context, "
+            "compliance constraints, and prior architectural decisions."
         ),
     ),
     EvidenceItem(
         id="E4",
-        source="founder_note",
-        user_segment="founder",
+        source="solutions_architect_note",
+        user_segment="staff engineer",
         severity=5,
         tags=["handoff", "implementation", "engineering"],
         text=(
-            "The biggest gap is the handoff. An idea can look good, but engineering "
-            "still needs requirements, edge cases, analytics events, and acceptance criteria."
+            "The real gap is the handoff. A direction can look good, but engineering "
+            "still needs requirements, data contracts, edge cases, analytics events, "
+            "and acceptance criteria before anyone can build it."
         ),
     ),
     EvidenceItem(
         id="E5",
-        source="product_analytics",
+        source="product_telemetry",
         user_segment="mixed",
         severity=4,
         tags=["selection", "feedback", "learning_loop"],
         text=(
-            "Users tend to select one of the first three generated ideas, but often "
-            "make heavy edits before sharing with their team."
+            "Teams usually pick one of the first few proposed directions, but heavily "
+            "edit it before circulating it for sign-off. We have no loop that learns "
+            "from those edits."
         ),
     ),
     EvidenceItem(
         id="E6",
-        source="competitor_review",
-        user_segment="PM",
+        source="win_loss_analysis",
+        user_segment="product manager",
         severity=3,
         tags=["differentiation", "generic_outputs", "critique"],
         text=(
-            "Prompt-to-prototype tools are useful, but they often jump to a single "
-            "artifact without explaining tradeoffs or why that direction is worth building."
+            "Off-the-shelf agent tools produce a single generic artifact without "
+            "explaining tradeoffs, risks, or why a direction is worth funding over "
+            "the alternatives."
         ),
     ),
 ]

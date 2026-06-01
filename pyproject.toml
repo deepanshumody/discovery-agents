@@ -4,28 +4,98 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "discovery-agents"
-version = "0.1.0"
-description = "Multi-agent product discovery pipeline: clusters evidence, generates directions, critiques, selects, and produces a coding-agent handoff."
+version = "0.2.0"
+description = "Production-grade, LLM-powered multi-agent product-discovery workflow: RAG, ReAct tool use, rigorous evals, guardrails, observability, and an MCP server. Keyless-by-default, real-on-demand."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [{ name = "Deepanshu Mody" }]
-keywords = ["agents", "product-discovery", "llm", "pipeline"]
+keywords = [
+    "agents",
+    "agentic-workflows",
+    "llm",
+    "rag",
+    "react",
+    "evaluation",
+    "guardrails",
+    "mcp",
+    "product-discovery",
+]
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=7"]
+# Real LLM providers (core runs keyless via the deterministic MockLLMClient).
+anthropic = ["anthropic>=0.39"]
+cohere = ["cohere>=5.5"]
+openai = ["openai>=1.40"]
+# Optional orchestration + retrieval backends.
+langgraph = ["langgraph>=0.2"]
+vectordb = ["pinecone-client>=4", "weaviate-client>=4"]
+# Model Context Protocol server.
+mcp = ["mcp>=1.0"]
+# Developer tooling.
+dev = ["pytest>=7", "ruff>=0.6", "mypy>=1.8"]
+# Everything, for a full local environment.
+all = [
+    "anthropic>=0.39",
+    "cohere>=5.5",
+    "openai>=1.40",
+    "langgraph>=0.2",
+    "mcp>=1.0",
+]
 
 [project.scripts]
 discovery-agents = "discovery_agents.cli:main"
 
+[project.urls]
+Homepage = "https://github.com/deepanshumody/discovery-agents"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+discovery_agents = ["eval/baseline.json"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "live: tests that require a real provider API key (skipped by default)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "C4", "SIM"]
+# E501 (line length) is enforced by `ruff format`; long HTML/CSS string literals in
+# render.py are intentional and cannot be wrapped, so we exclude it from linting.
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
+
+[tool.mypy]
+python_version = "3.9"
+files = ["src"]
+# Optional provider SDKs (anthropic, cohere, openai, langgraph, mcp, pinecone, weaviate)
+# are imported lazily and may be absent; do not fail type-checking on them.
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true

@@ -8,8 +8,8 @@ or multimodal model.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
-from typing import Any, Dict, List, Optional
+from dataclasses import asdict, dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -20,8 +20,8 @@ class ProductBrief:
     product: str
     target_user: str
     goal: str
-    constraints: List[str] = field(default_factory=list)
-    strategic_themes: List[str] = field(default_factory=list)
+    constraints: list[str] = field(default_factory=list)
+    strategic_themes: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -33,7 +33,7 @@ class EvidenceItem:
     text: str
     user_segment: str = "unknown"
     severity: int = 3  # 1 low, 5 high
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -43,9 +43,9 @@ class Insight:
     id: str
     title: str
     summary: str
-    evidence_ids: List[str]
+    evidence_ids: list[str]
     confidence: float
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -58,10 +58,10 @@ class ProductDirection:
     target_user: str
     core_loop: str
     why_now: str
-    evidence_ids: List[str]
+    evidence_ids: list[str]
     differentiator: str
-    implementation_notes: List[str]
-    risks: List[str]
+    implementation_notes: list[str]
+    risks: list[str]
     canvas_column: str = "Ideas"
     canvas_row: int = 0
 
@@ -103,9 +103,9 @@ class CanvasCard:
     column: str
     row: int
     body: str
-    evidence: List[str]
+    evidence: list[str]
     score: float
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -115,12 +115,12 @@ class CodingSpec:
     direction_id: str
     feature_name: str
     user_story: str
-    functional_requirements: List[str]
-    non_functional_requirements: List[str]
-    data_contract: Dict[str, Any]
-    acceptance_criteria: List[str]
-    analytics_events: List[str]
-    open_questions: List[str]
+    functional_requirements: list[str]
+    non_functional_requirements: list[str]
+    data_contract: dict[str, Any]
+    acceptance_criteria: list[str]
+    analytics_events: list[str]
+    open_questions: list[str]
 
 
 @dataclass
@@ -137,15 +137,15 @@ class AgentRun:
     """End-to-end run artifact. This is the object persisted to JSON."""
 
     brief: ProductBrief
-    evidence: List[EvidenceItem]
-    insights: List[Insight]
-    directions: List[ProductDirection]
-    critiques: List[CritiqueScore]
-    canvas_cards: List[CanvasCard]
-    selected_direction_id: Optional[str]
-    coding_spec: Optional[CodingSpec]
-    evals: List[EvalResult]
-    decision_log: List[str] = field(default_factory=list)
+    evidence: list[EvidenceItem]
+    insights: list[Insight]
+    directions: list[ProductDirection]
+    critiques: list[CritiqueScore]
+    canvas_cards: list[CanvasCard]
+    selected_direction_id: str | None
+    coding_spec: CodingSpec | None
+    evals: list[EvalResult]
+    decision_log: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import html
-from typing import Dict
 
 from .models import AgentRun
 
@@ -36,7 +35,11 @@ def render_run_markdown(run: AgentRun) -> str:
     lines.append("## Candidate Product Directions")
     for direction in run.directions:
         critique = critique_by_id[direction.id]
-        evidence_quotes = [f"{eid}: {evidence_by_id[eid].text}" for eid in direction.evidence_ids if eid in evidence_by_id]
+        evidence_quotes = [
+            f"{eid}: {evidence_by_id[eid].text}"
+            for eid in direction.evidence_ids
+            if eid in evidence_by_id
+        ]
         lines.extend(
             [
                 f"### {direction.id}. {direction.title}",
@@ -99,7 +102,7 @@ def render_handoff_markdown(run: AgentRun) -> str:
 
 
 def render_canvas_html(run: AgentRun) -> str:
-    critique_by_id: Dict[str, float] = {c.direction_id: c.weighted_score for c in run.critiques}
+    critique_by_id: dict[str, float] = {c.direction_id: c.weighted_score for c in run.critiques}
     selected = run.selected_direction_id
     cards_html = []
     for card in run.canvas_cards:
@@ -163,7 +166,7 @@ def render_canvas_html(run: AgentRun) -> str:
     <div class="sub">This canvas demonstrates a product-discovery agent system: cluster evidence, generate multiple directions, critique tradeoffs, select a path, and produce a coding-agent handoff.</div>
   </header>
   <main class="canvas">
-    {''.join(cards_html)}
+    {"".join(cards_html)}
   </main>
   <section>
     <h2>Pipeline evals</h2>

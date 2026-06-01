@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git commit -q -m 'docs: design spec for LLM-powered agentic workflow upgrade *)",
+      "Bash(git commit *)",
+      "Bash(ruff format *)",
+      "Bash(ruff check *)",
+      "Bash(mypy)",
+      "Bash(python3 -m pytest -q)"
+    ]
+  }
+}

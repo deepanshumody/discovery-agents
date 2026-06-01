@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import List
 
 from .agent_base import AgentTrace
 from .agents import (
@@ -36,7 +35,7 @@ class ProductDiscoveryPipeline:
         self.eval_agent = EvalAgent(self.trace)
         self.memory_agent = DecisionMemoryAgent(self.trace)
 
-    def run(self, brief: ProductBrief, evidence: List[EvidenceItem]) -> AgentRun:
+    def run(self, brief: ProductBrief, evidence: list[EvidenceItem]) -> AgentRun:
         insights = self.evidence_agent.run(evidence)
         opportunities = self.strategy_agent.run(brief, insights)
         directions = self.ideation_agent.run(brief, insights, opportunities)
@@ -65,8 +64,12 @@ class ProductDiscoveryPipeline:
 
         output = Path(output_dir)
         output.mkdir(parents=True, exist_ok=True)
-        (output / "agent_run.json").write_text(json.dumps(run.to_dict(), indent=2), encoding="utf-8")
+        (output / "agent_run.json").write_text(
+            json.dumps(run.to_dict(), indent=2), encoding="utf-8"
+        )
         (output / "run_summary.md").write_text(render_run_markdown(run), encoding="utf-8")
-        (output / "coding_agent_handoff.md").write_text(render_handoff_markdown(run), encoding="utf-8")
+        (output / "coding_agent_handoff.md").write_text(
+            render_handoff_markdown(run), encoding="utf-8"
+        )
         (output / "canvas.html").write_text(render_canvas_html(run), encoding="utf-8")
         (output / "agent_trace.md").write_text(self.trace.as_markdown(), encoding="utf-8")

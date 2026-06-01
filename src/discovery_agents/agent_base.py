@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any
 
 
 @dataclass
 class TraceEvent:
     agent: str
     message: str
-    payload: Dict[str, Any] = field(default_factory=dict)
+    payload: dict[str, Any] = field(default_factory=dict)
     timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
@@ -19,7 +19,7 @@ class AgentTrace:
     """Simple trace collector for explainable multi-agent runs."""
 
     def __init__(self) -> None:
-        self.events: List[TraceEvent] = []
+        self.events: list[TraceEvent] = []
 
     def log(self, agent: str, message: str, **payload: Any) -> None:
         self.events.append(TraceEvent(agent=agent, message=message, payload=payload))

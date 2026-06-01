@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import itertools
-from typing import List
 
 from ..agent_base import BaseAgent
 from ..models import (
@@ -25,11 +24,11 @@ class EvalAgent(BaseAgent):
     def run(
         self,
         brief: ProductBrief,
-        evidence: List[EvidenceItem],
-        directions: List[ProductDirection],
-        critiques: List[CritiqueScore],
+        evidence: list[EvidenceItem],
+        directions: list[ProductDirection],
+        critiques: list[CritiqueScore],
         spec: CodingSpec,
-    ) -> List[EvalResult]:
+    ) -> list[EvalResult]:
         evals = [
             self._direction_count_eval(directions),
             self._evidence_coverage_eval(evidence, directions),
@@ -41,28 +40,48 @@ class EvalAgent(BaseAgent):
         self.log("Evaluated agent run", eval_count=len(evals))
         return evals
 
-    def _direction_count_eval(self, directions: List[ProductDirection]) -> EvalResult:
+    def _direction_count_eval(self, directions: list[ProductDirection]) -> EvalResult:
         score = min(1.0, len(directions) / 5)
-        return EvalResult("direction_diversity_count", score, f"Generated {len(directions)} directions; target is 5+.")
+        return EvalResult(
+            "direction_diversity_count",
+            score,
+            f"Generated {len(directions)} directions; target is 5+.",
+        )
 
-    def _evidence_coverage_eval(self, evidence: List[EvidenceItem], directions: List[ProductDirection]) -> EvalResult:
+    def _evidence_coverage_eval(
+        self, evidence: list[EvidenceItem], directions: list[ProductDirection]
+    ) -> EvalResult:
         cited = set(itertools.chain.from_iterable(d.evidence_ids for d in directions))
         available = {e.id for e in evidence}
         score = len(cited & available) / max(1, len(available))
-        return EvalResult("evidence_coverage", round(score, 2), f"Cited {len(cited & available)} of {len(available)} evidence items.")
+        return EvalResult(
+            "evidence_coverage",
+            round(score, 2),
+            f"Cited {len(cited & available)} of {len(available)} evidence items.",
+        )
 
-    def _distinctiveness_eval(self, directions: List[ProductDirection]) -> EvalResult:
+    def _distinctiveness_eval(self, directions: list[ProductDirection]) -> EvalResult:
         if len(directions) < 2:
-            return EvalResult("semantic_distinctiveness", 0.0, "Need at least two directions to compare.")
-        token_sets = [set(tokenize(d.title + " " + d.one_liner + " " + d.differentiator)) for d in directions]
+            return EvalResult(
+                "semantic_distinctiveness", 0.0, "Need at least two directions to compare."
+            )
+        token_sets = [
+            set(tokenize(d.title + " " + d.one_liner + " " + d.differentiator)) for d in directions
+        ]
         similarities = []
         for a, b in itertools.combinations(token_sets, 2):
             similarities.append(len(a & b) / max(1, len(a | b)))
         avg_similarity = sum(similarities) / len(similarities)
         score = round(max(0.0, 1.0 - avg_similarity), 2)
-        return EvalResult("semantic_distinctiveness", score, f"Average pairwise Jaccard similarity is {avg_similarity:.2f}.")
+        return EvalResult(
+            "semantic_distinctiveness",
+            score,
+            f"Average pairwise Jaccard similarity is {avg_similarity:.2f}.",
+        )
 
-    def _constraint_coverage_eval(self, brief: ProductBrief, directions: List[ProductDirection], spec: CodingSpec) -> EvalResult:
+    def _constraint_coverage_eval(
+        self, brief: ProductBrief, directions: list[ProductDirection], spec: CodingSpec
+    ) -> EvalResult:
         combined = " ".join(
             [d.one_liner + " " + d.core_loop + " " + d.differentiator for d in directions]
             + spec.functional_requirements
@@ -74,7 +93,11 @@ class EvalAgent(BaseAgent):
             if any(k in combined for k in keywords):
                 hits += 1
         score = hits / max(1, len(brief.constraints))
-        return EvalResult("constraint_coverage", round(score, 2), f"Covered {hits} of {len(brief.constraints)} constraints.")
+        return EvalResult(
+            "constraint_coverage",
+            round(score, 2),
+            f"Covered {hits} of {len(brief.constraints)} constraints.",
+        )
 
     def _handoff_completeness_eval(self, spec: CodingSpec) -> EvalResult:
         sections = [
@@ -88,10 +111,20 @@ class EvalAgent(BaseAgent):
         ]
         complete = sum(1 for section in sections if section)
         score = complete / len(sections)
-        return EvalResult("handoff_completeness", round(score, 2), f"Completed {complete} of {len(sections)} handoff sections.")
+        return EvalResult(
+            "handoff_completeness",
+            round(score, 2),
+            f"Completed {complete} of {len(sections)} handoff sections.",
+        )
 
-    def _risk_visibility_eval(self, directions: List[ProductDirection], critiques: List[CritiqueScore]) -> EvalResult:
+    def _risk_visibility_eval(
+        self, directions: list[ProductDirection], critiques: list[CritiqueScore]
+    ) -> EvalResult:
         directions_with_risks = sum(1 for d in directions if d.risks)
         critiques_with_next_steps = sum(1 for c in critiques if c.recommended_next_step)
-        score = (directions_with_risks + critiques_with_next_steps) / max(1, len(directions) + len(critiques))
-        return EvalResult("risk_visibility", round(score, 2), "Checks whether risks and next steps are explicit.")
+        score = (directions_with_risks + critiques_with_next_steps) / max(
+            1, len(directions) + len(critiques)
+        )
+        return EvalResult(
+            "risk_visibility", round(score, 2), "Checks whether risks and next steps are explicit."
+        )

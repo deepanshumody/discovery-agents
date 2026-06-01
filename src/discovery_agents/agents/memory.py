@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import List
-
 from ..agent_base import BaseAgent
 from ..models import CritiqueScore, ProductDirection
 
@@ -13,7 +11,9 @@ class DecisionMemoryAgent(BaseAgent):
 
     name = "DecisionMemoryAgent"
 
-    def run(self, selected_id: str, directions: List[ProductDirection], critiques: List[CritiqueScore]) -> List[str]:
+    def run(
+        self, selected_id: str, directions: list[ProductDirection], critiques: list[CritiqueScore]
+    ) -> list[str]:
         direction_by_id = {d.id: d for d in directions}
         critique_by_id = {c.direction_id: c for c in critiques}
         selected = direction_by_id[selected_id]
