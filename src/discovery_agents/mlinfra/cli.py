@@ -1,9 +1,10 @@
-"""CLI for the ML-infra platform: curate | train | bench | export.
+"""CLI for the ML-infra platform: curate | train | io-bench | benchmark | export.
 
 python -m discovery_agents.mlinfra.cli curate
 python -m discovery_agents.mlinfra.cli train
-python -m discovery_agents.mlinfra.cli train --smoke     # tiny end-to-end (curate+train+export)
-python -m discovery_agents.mlinfra.cli bench
+python -m discovery_agents.mlinfra.cli train --smoke         # tiny end-to-end (curate+train+export)
+python -m discovery_agents.mlinfra.cli io-bench              # Numpy/Zarr/HDF5 read throughput
+python -m discovery_agents.mlinfra.cli benchmark --full      # Banking77 retrieval: trained vs lexical
 python -m discovery_agents.mlinfra.cli export
 """
 
@@ -114,6 +115,20 @@ def cmd_bench(data: DataConfig, base: str) -> int:
     return 0
 
 
+def cmd_retrieval_benchmark(*, full: bool, with_st: bool, steps: int | None) -> int:
+    from .retrieval_eval import run_benchmark, write_results
+
+    report = run_benchmark(full=full, with_st=with_st, steps=steps)
+    write_results(report)
+    cols = ["recall@1", "recall@5", "recall@10", "mrr", "map"]
+    print(f"\nBanking77 retrieval ({report['dataset']}, {report['train_steps']} steps):")
+    print(f"  {'embedder':34} " + " ".join(f"{c:>9}" for c in cols))
+    for name, metrics in report["results"].items():
+        print(f"  {name:34} " + " ".join(f"{metrics[c]:9.4f}" for c in cols))
+    print("\nWrote benchmark/RESULTS.md + benchmark/results.json")
+    return 0
+
+
 def cmd_export(base: str) -> int:
     from .embedder import TorchEmbedder
 
@@ -132,7 +147,7 @@ def cmd_export(base: str) -> int:
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="discovery-agents ML-infra platform")
-    parser.add_argument("command", choices=["curate", "train", "bench", "export"])
+    parser.add_argument("command", choices=["curate", "train", "io-bench", "benchmark", "export"])
     parser.add_argument("--artifacts", default="outputs/ml", help="Artifact base directory.")
     parser.add_argument("--backend", default="numpy", help="Store backend: numpy|zarr|hdf5.")
     parser.add_argument("--executor", default="local", help="Curation executor: local|dask.")
@@ -144,6 +159,14 @@ def main(argv: list[str] | None = None) -> None:
     )
     parser.add_argument(
         "--smoke", action="store_true", help="Tiny end-to-end run (curate+train+export)."
+    )
+    parser.add_argument(
+        "--full", action="store_true", help="benchmark: use the full Banking77 split (downloads)."
+    )
+    parser.add_argument(
+        "--with-st",
+        action="store_true",
+        help="benchmark: include the sentence-transformers reference.",
     )
     args = parser.parse_args(argv)
 
@@ -164,8 +187,11 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.command == "curate":
         raise SystemExit(cmd_curate(data, args.artifacts))
-    if args.command == "bench":
+    if args.command == "io-bench":
         raise SystemExit(cmd_bench(data, args.artifacts))
+    if args.command == "benchmark":
+        steps = None if args.steps == 200 else args.steps  # 200 is the train default, not bench
+        raise SystemExit(cmd_retrieval_benchmark(full=args.full, with_st=args.with_st, steps=steps))
     if args.command == "export":
         raise SystemExit(cmd_export(args.artifacts))
     # train (and --smoke runs the full curate -> train -> export chain)

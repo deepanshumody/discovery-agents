@@ -1,0 +1,32 @@
+{
+  "dataset": "banking77",
+  "split": {
+    "queries": 3076,
+    "pool": 9993,
+    "intents": 77
+  },
+  "train_steps": 1200,
+  "results": {
+    "hashing (lexical baseline)": {
+      "recall@1": 0.7685305591677504,
+      "recall@5": 0.9219765929778934,
+      "recall@10": 0.951885565669701,
+      "mrr": 0.8344867845274216,
+      "map": 0.5028148543769481
+    },
+    "torch (supervised contrastive)": {
+      "recall@1": 0.8296488946684005,
+      "recall@5": 0.9105981794538361,
+      "recall@10": 0.9330299089726918,
+      "mrr": 0.8649146231964828,
+      "map": 0.7749092952091976
+    },
+    "sentence-transformers (reference)": {
+      "recall@1": 0.9206762028608583,
+      "recall@5": 0.9700910273081924,
+      "recall@10": 0.9804941482444733,
+      "mrr": 0.9417337502838152,
+      "map": 0.8416668730777963
+    }
+  }
+}
