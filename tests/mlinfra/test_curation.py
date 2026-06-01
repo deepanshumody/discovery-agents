@@ -53,3 +53,11 @@ def test_local_and_dask_produce_identical_archive(tmp_path) -> None:
     dask_rows = dask_store.read("tokens", 0, 40)
 
     np.testing.assert_array_equal(local_rows, dask_rows)
+
+
+def test_empty_corpus_yields_empty_archive(tmp_path) -> None:
+    vocab = WordVocab.build(["seed document"])
+    store = open_store("numpy", str(tmp_path / "empty"), mode="w")
+    n = CorpusCurator(vocab, 16, LocalExecutor()).run([], store)
+    assert n == 0
+    assert store.length("tokens") == 0  # degenerate empty shard is a clean no-op, not a crash

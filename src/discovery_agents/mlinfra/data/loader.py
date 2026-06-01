@@ -23,7 +23,33 @@ def build_dataloader(
     num_workers: int = 0,
     seed: int | None = None,
 ) -> DataLoader[torch.Tensor]:
+    # Lazy import avoids a data<->train import cycle at module load.
+    from ..train.distributed import get_rank, get_world_size, is_distributed
+
     pin_memory = device is not None and str(device).startswith("cuda")
+
+    if is_distributed():
+        # Each rank gets a disjoint shard, so data-parallel workers don't all train on
+        # the same data (call sampler.set_epoch(epoch) per epoch to reshuffle).
+        from torch.utils.data.distributed import DistributedSampler
+
+        sampler: DistributedSampler[torch.Tensor] = DistributedSampler(
+            dataset,
+            num_replicas=get_world_size(),
+            rank=get_rank(),
+            shuffle=shuffle,
+            seed=seed or 0,
+        )
+        return DataLoader(
+            dataset,
+            batch_size=batch_size,
+            sampler=sampler,  # sampler handles shuffling; DataLoader shuffle must be False
+            collate_fn=collate,
+            pin_memory=pin_memory,
+            num_workers=num_workers,
+            drop_last=True,
+        )
+
     generator: torch.Generator | None = None
     if seed is not None:
         generator = torch.Generator()

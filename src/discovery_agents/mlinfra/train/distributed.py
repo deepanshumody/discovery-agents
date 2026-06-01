@@ -22,6 +22,8 @@ def set_seed(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
 
 def is_distributed() -> bool:
@@ -30,6 +32,11 @@ def is_distributed() -> bool:
 
 def get_rank() -> int:
     return dist.get_rank() if is_distributed() else 0
+
+
+def get_local_rank() -> int:
+    """Local (per-node) rank for device placement; torchrun sets LOCAL_RANK."""
+    return int(os.environ.get("LOCAL_RANK", get_rank()))
 
 
 def get_world_size() -> int:
@@ -43,6 +50,9 @@ def is_main() -> bool:
 def setup(rank: int, world_size: int, backend: str = "gloo") -> None:
     os.environ.setdefault("MASTER_ADDR", "127.0.0.1")
     os.environ.setdefault("MASTER_PORT", "29500")
+    # Pin each rank to its own GPU before init so nccl collectives don't collide on GPU 0.
+    if backend == "nccl" and torch.cuda.is_available():
+        torch.cuda.set_device(get_local_rank() % torch.cuda.device_count())
     dist.init_process_group(backend=backend, rank=rank, world_size=world_size)
 
 
@@ -53,9 +63,12 @@ def cleanup() -> None:
 
 def maybe_ddp(model: nn.Module) -> nn.Module:
     """Wrap in DistributedDataParallel when a process group is initialized."""
-    if is_distributed():
-        return DistributedDataParallel(model)
-    return model
+    if not is_distributed():
+        return model
+    if torch.cuda.is_available():
+        local_rank = get_local_rank() % torch.cuda.device_count()
+        return DistributedDataParallel(model, device_ids=[local_rank], output_device=local_rank)
+    return DistributedDataParallel(model)  # CPU/gloo
 
 
 def unwrap(model: nn.Module) -> nn.Module:

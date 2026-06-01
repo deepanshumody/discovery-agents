@@ -48,7 +48,6 @@ def benchmark_backend(
         total_bytes += int(np.asarray(chunk).nbytes)
     reader.close()
 
-    latencies_ms.sort()
     read_seconds = sum(latencies_ms) / 1000.0
     samples = num_batches * batch_size
     return {
@@ -56,8 +55,8 @@ def benchmark_backend(
         "write_s": round(write_s, 4),
         "read_samples_per_s": round(samples / read_seconds, 1) if read_seconds > 0 else 0.0,
         "read_mb_per_s": round(total_bytes / 1e6 / read_seconds, 2) if read_seconds > 0 else 0.0,
-        "p50_ms": round(latencies_ms[len(latencies_ms) // 2], 4),
-        "p95_ms": round(latencies_ms[min(len(latencies_ms) - 1, int(len(latencies_ms) * 0.95))], 4),
+        "p50_ms": round(float(np.percentile(latencies_ms, 50)), 4),
+        "p95_ms": round(float(np.percentile(latencies_ms, 95)), 4),
     }
 
 

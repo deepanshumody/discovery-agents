@@ -52,10 +52,39 @@ def test_backends_agree(tmp_path) -> None:
         store = open_store(backend, path, mode="w")
         store.create("tokens", (0, 4), "int64")
         store.append("tokens", data)
-        reads[backend] = store.read("tokens", 0, 6)
         store.close()
+        # Reopen for read so the comparison actually round-trips through disk for every backend.
+        reader = open_store(backend, path, mode="r")
+        reads[backend] = reader.read("tokens", 0, 6)
+        reader.close()
     np.testing.assert_array_equal(reads["numpy"], reads["zarr"])
     np.testing.assert_array_equal(reads["numpy"], reads["hdf5"])
+
+
+@pytest.mark.parametrize("backend,suffix", [("numpy", ""), ("zarr", ".zarr"), ("hdf5", ".h5")])
+def test_reopen_and_append_preserves_data(tmp_path, backend, suffix) -> None:
+    if backend == "zarr":
+        pytest.importorskip("zarr")
+    if backend == "hdf5":
+        pytest.importorskip("h5py")
+    path = str(tmp_path / f"store{suffix}")
+    first = np.arange(8, dtype="int64").reshape(2, 4)
+    second = np.arange(8, 16, dtype="int64").reshape(2, 4)
+
+    store = open_store(backend, path, mode="w")
+    store.create("tokens", (0, 4), "int64")
+    store.append("tokens", first)
+    store.close()
+
+    # Reopen for append (resume-style continuation) and add more rows.
+    store = open_store(backend, path, mode="a")
+    store.append("tokens", second)
+    store.close()
+
+    reader = open_store(backend, path, mode="r")
+    assert reader.length("tokens") == 4  # prior rows were NOT lost on reopen-append
+    np.testing.assert_array_equal(reader.read("tokens", 0, 4), np.concatenate([first, second]))
+    reader.close()
 
 
 def test_unknown_backend_raises() -> None:

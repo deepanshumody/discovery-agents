@@ -51,6 +51,8 @@ class TorchEmbedder:
         return self.embed_batch([text])[0]
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        if not texts:  # parity with HashingEmbedder; empty in -> empty out (no encoder call)
+            return []
         rows = [self.vocab.encode_padded(t, self.seq_len) for t in texts]
         tokens = torch.tensor(rows, dtype=torch.long, device=self.device)
         with torch.no_grad():

@@ -41,7 +41,9 @@ def cmd_curate(data: DataConfig, base: str) -> int:
     return 0
 
 
-def cmd_train(data: DataConfig, model: ModelConfig, train: TrainConfig, base: str) -> int:
+def cmd_train(
+    data: DataConfig, model: ModelConfig, train: TrainConfig, base: str, *, no_resume: bool = False
+) -> int:
     import torch  # lazy
 
     from .data import ArrayStoreDataset, build_dataloader
@@ -65,7 +67,18 @@ def cmd_train(data: DataConfig, model: ModelConfig, train: TrainConfig, base: st
     trainer = Trainer(
         encoder, train, device="cuda" if torch.cuda.is_available() else "cpu", tracker=tracker
     )
-    if has_checkpoint(ckpt_dir):
+    if has_checkpoint(ckpt_dir) and not no_resume:
+        prior_path = Path(ckpt_dir) / "model_config.json"
+        if prior_path.exists():
+            prior = json.loads(prior_path.read_text(encoding="utf-8"))
+            arch_keys = ("dim", "num_layers", "num_heads", "ff_dim", "max_seq_len")
+            mismatched = [k for k in arch_keys if prior.get(k) != getattr(model, k)]
+            if mismatched:
+                print(
+                    f"ERROR: checkpoint in {ckpt_dir} was trained with a different architecture "
+                    f"({', '.join(mismatched)} differ). Use --no-resume or a clean --artifacts dir."
+                )
+                return 1
         trainer.step = load_checkpoint(
             ckpt_dir, model=trainer.module, optimizer=trainer.optimizer, scheduler=trainer.scheduler
         )
@@ -105,6 +118,11 @@ def cmd_export(base: str) -> int:
     from .embedder import TorchEmbedder
 
     _, ckpt_dir = _paths(base)
+    required = ["vocab.json", "model_config.json", "latest.pt"]
+    missing = [f for f in required if not (Path(ckpt_dir) / f).exists()]
+    if missing:
+        print(f"No exported model in {ckpt_dir} (missing {', '.join(missing)}); run `train` first.")
+        return 1
     embedder = TorchEmbedder.from_pretrained(ckpt_dir)
     sample = embedder.embed("evidence-grounded enterprise agent workflow")
     norm = sum(x * x for x in sample) ** 0.5
@@ -120,22 +138,27 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--executor", default="local", help="Curation executor: local|dask.")
     parser.add_argument("--corpus-size", type=int, default=512)
     parser.add_argument("--steps", type=int, default=200)
+    parser.add_argument("--seq-len", type=int, default=64, help="Token sequence length.")
+    parser.add_argument(
+        "--no-resume", action="store_true", help="Ignore any existing checkpoint and start fresh."
+    )
     parser.add_argument(
         "--smoke", action="store_true", help="Tiny end-to-end run (curate+train+export)."
     )
     args = parser.parse_args(argv)
 
+    seq_len = 16 if args.smoke else args.seq_len
     data = DataConfig(
         corpus_size=16 if args.smoke else args.corpus_size,
         store_backend=args.backend,
         executor=args.executor,
         batch_size=4 if args.smoke else 32,
-        seq_len=16,
+        seq_len=seq_len,
     )
     model = (
-        ModelConfig(dim=32, num_layers=2, num_heads=4, max_seq_len=16)
+        ModelConfig(dim=32, num_layers=2, num_heads=4, max_seq_len=seq_len)
         if args.smoke
-        else ModelConfig()
+        else ModelConfig(max_seq_len=seq_len)
     )
     train = TrainConfig.smoke() if args.smoke else TrainConfig(steps=args.steps)
 
@@ -148,10 +171,10 @@ def main(argv: list[str] | None = None) -> None:
     # train (and --smoke runs the full curate -> train -> export chain)
     if args.smoke:
         cmd_curate(data, args.artifacts)
-    cmd_train(data, model, train, args.artifacts)
-    if args.smoke:
+    code = cmd_train(data, model, train, args.artifacts, no_resume=args.no_resume)
+    if code == 0 and args.smoke:
         cmd_export(args.artifacts)
-    raise SystemExit(0)
+    raise SystemExit(code)
 
 
 if __name__ == "__main__":

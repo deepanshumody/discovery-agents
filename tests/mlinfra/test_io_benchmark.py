@@ -40,7 +40,10 @@ def test_benchmark_sweeps_available_backends(tmp_path) -> None:
 
 
 def test_resource_sampler_records_wall_time() -> None:
+    import time
+
     with ResourceSampler() as sampler:
-        sum(i * i for i in range(10_000))
-    assert sampler.stats["wall_s"] >= 0.0
+        time.sleep(0.02)
+    assert 0.0 < sampler.stats["wall_s"] < 5.0  # actually measured, within a sane bound
     assert sampler.stats["rss_mb"] > 0.0
+    assert set(sampler.stats) >= {"wall_s", "rss_mb", "rss_delta_mb", "cpu_percent"}

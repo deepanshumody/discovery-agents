@@ -42,7 +42,9 @@ class CorpusCurator:
             _encode, vocab=self.vocab, seq_len=self.seq_len
         )
         rows = self.executor.map(encoder, docs)
-        array = np.asarray(rows, dtype="int64")
+        # reshape(-1, seq_len) so an empty corpus yields a valid (0, seq_len) array
+        # instead of a 1-D (0,) array that breaks the 2-D store append.
+        array = np.asarray(rows, dtype="int64").reshape(-1, self.seq_len)
         store.create(name, (0, self.seq_len), "int64")
         store.append(name, array)
         return int(array.shape[0])

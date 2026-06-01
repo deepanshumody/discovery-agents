@@ -1,4 +1,7 @@
-"""Checkpoint fidelity: resume reproduces the next step exactly; SIGTERM checkpoints."""
+"""Checkpoint fidelity: restoring {model, optimizer, scheduler, RNG} reproduces the next
+step exactly *given the same batch*; SIGTERM checkpoints. (Sampler/data-stream offset is
+not yet checkpointed, so full data-stream resumability is future work -- see the spec.)
+"""
 
 from __future__ import annotations
 

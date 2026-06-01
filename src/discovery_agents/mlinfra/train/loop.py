@@ -49,6 +49,7 @@ class Trainer:
             self.optimizer, functools.partial(_warmup_factor, warmup_steps=config.warmup_steps)
         )
         self.step = 0
+        self.last_lr = float(self.optimizer.param_groups[0]["lr"])
 
     def train_step(self, batch: torch.Tensor) -> float:
         self.model.train()
@@ -60,6 +61,9 @@ class Trainer:
         self.optimizer.zero_grad(set_to_none=True)
         loss.backward()
         nn.utils.clip_grad_norm_(self.module.parameters(), self.config.grad_clip)
+        # Capture the LR actually applied to this step BEFORE the scheduler advances,
+        # so logged lr pairs with the loss of the same step.
+        self.last_lr = float(self.optimizer.param_groups[0]["lr"])
         self.optimizer.step()
         self.scheduler.step()
         self.step += 1
@@ -77,9 +81,7 @@ class Trainer:
                 and self.tracker is not None
                 and dist_utils.is_main()
             ):
-                self.tracker.log_metrics(
-                    {"loss": loss, "lr": self.scheduler.get_last_lr()[0]}, self.step
-                )
+                self.tracker.log_metrics({"loss": loss, "lr": self.last_lr}, self.step)
             if (
                 self.config.checkpoint_every
                 and self.step % self.config.checkpoint_every == 0

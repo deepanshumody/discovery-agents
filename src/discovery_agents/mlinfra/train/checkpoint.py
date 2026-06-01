@@ -27,17 +27,22 @@ CHECKPOINT_NAME = "latest.pt"
 
 
 def _rng_state() -> dict[str, Any]:
-    return {
+    state: dict[str, Any] = {
         "torch": torch.get_rng_state(),
         "numpy": np.random.get_state(),
         "python": random.getstate(),
     }
+    if torch.cuda.is_available():
+        state["cuda"] = torch.cuda.get_rng_state_all()  # per-device GPU RNG
+    return state
 
 
 def _set_rng_state(state: dict[str, Any]) -> None:
     torch.set_rng_state(state["torch"])
     np.random.set_state(state["numpy"])
     random.setstate(state["python"])
+    if torch.cuda.is_available() and state.get("cuda") is not None:
+        torch.cuda.set_rng_state_all(state["cuda"])  # restore so GPU resume is bit-exact
 
 
 def has_checkpoint(directory: str) -> bool:
@@ -63,7 +68,16 @@ def save_checkpoint(
     fd, tmp = tempfile.mkstemp(dir=directory, suffix=".tmp")
     os.close(fd)
     torch.save(payload, tmp)
+    # Durability: flush the temp file's data, then atomically rename, then fsync the
+    # directory so the rename survives a hard crash / node power loss (not just a process kill).
+    with open(tmp, "rb") as handle:
+        os.fsync(handle.fileno())
     os.replace(tmp, Path(directory) / CHECKPOINT_NAME)  # atomic on POSIX
+    dir_fd = os.open(directory, os.O_RDONLY)
+    try:
+        os.fsync(dir_fd)
+    finally:
+        os.close(dir_fd)
     return str(Path(directory) / CHECKPOINT_NAME)
 
 
