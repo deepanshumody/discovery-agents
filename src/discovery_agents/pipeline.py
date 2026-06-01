@@ -32,7 +32,7 @@ from .observability.trace import Trace
 from .retrieval.index import EvidenceIndex
 from .runtime.graph import build_discovery_graph
 from .runtime.state_machine import State, StateMachine
-from .tools import EvidenceSearchTool, ToolRegistry
+from .tools import CalculatorTool, EvidenceSearchTool, ToolRegistry, WebSearchTool
 
 logger = logging.getLogger("discovery_agents.pipeline")
 
@@ -61,7 +61,9 @@ class ProductDiscoveryPipeline:
     def run(self, brief: ProductBrief, evidence: list[EvidenceItem]) -> AgentRun:
         # Build the RAG index + tool registry once per run, then thread them in.
         self.index = EvidenceIndex.from_evidence(evidence)
-        self.tools = ToolRegistry([EvidenceSearchTool(self.index)])
+        self.tools = ToolRegistry(
+            [EvidenceSearchTool(self.index), CalculatorTool(), WebSearchTool()]
+        )
 
         graph = build_discovery_graph(
             trace=self.trace,
