@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .agent_base import AgentTrace
 from .agents import (
     CanvasAgent,
     CritiqueAgent,
@@ -17,23 +16,32 @@ from .agents import (
     ProductStrategyAgent,
     SelectionAgent,
 )
+from .config import RunConfig
+from .llm import get_client
 from .models import AgentRun, EvidenceItem, ProductBrief
+from .observability.trace import Trace
 
 
 class ProductDiscoveryPipeline:
-    """Orchestrates a multi-agent product discovery workflow."""
+    """Orchestrates a multi-agent product discovery workflow.
 
-    def __init__(self) -> None:
-        self.trace = AgentTrace()
-        self.evidence_agent = EvidenceInsightAgent(self.trace)
-        self.strategy_agent = ProductStrategyAgent(self.trace)
-        self.ideation_agent = IdeationAgent(self.trace)
-        self.critique_agent = CritiqueAgent(self.trace)
-        self.canvas_agent = CanvasAgent(self.trace)
-        self.selection_agent = SelectionAgent(self.trace)
-        self.handoff_agent = HandoffAgent(self.trace)
-        self.eval_agent = EvalAgent(self.trace)
-        self.memory_agent = DecisionMemoryAgent(self.trace)
+    Construct with a `RunConfig` to choose the provider/model; with no config it
+    resolves from the environment and defaults to the keyless mock client.
+    """
+
+    def __init__(self, config: RunConfig | None = None) -> None:
+        self.config = config or RunConfig.from_env()
+        self.trace = Trace()
+        self.llm = get_client(self.config)
+        self.evidence_agent = EvidenceInsightAgent(self.trace, self.llm)
+        self.strategy_agent = ProductStrategyAgent(self.trace, self.llm)
+        self.ideation_agent = IdeationAgent(self.trace, self.llm)
+        self.critique_agent = CritiqueAgent(self.trace, self.llm)
+        self.canvas_agent = CanvasAgent(self.trace, self.llm)
+        self.selection_agent = SelectionAgent(self.trace, self.llm)
+        self.handoff_agent = HandoffAgent(self.trace, self.llm)
+        self.eval_agent = EvalAgent(self.trace, self.llm)
+        self.memory_agent = DecisionMemoryAgent(self.trace, self.llm)
 
     def run(self, brief: ProductBrief, evidence: list[EvidenceItem]) -> AgentRun:
         insights = self.evidence_agent.run(evidence)

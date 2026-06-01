@@ -1,12 +1,48 @@
-"""Ideation agent — emits multiple divergent product directions."""
+"""Ideation agent — emits multiple divergent product directions.
+
+With a real provider, the agent asks the model for several evidence-grounded
+directions as structured JSON and parses them. With the keyless mock (or if the
+model returns invalid output), it falls back to a curated deterministic baseline
+so the demo and tests stay reproducible.
+"""
 
 from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Iterable
+from typing import Any
 
 from ..agent_base import BaseAgent
 from ..models import Insight, ProductBrief, ProductDirection
+
+# JSON schema advertised to the model when requesting structured output.
+DIRECTIONS_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "directions": {
+            "type": "array",
+            "minItems": 3,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "title": {"type": "string"},
+                    "one_liner": {"type": "string"},
+                    "target_user": {"type": "string"},
+                    "core_loop": {"type": "string"},
+                    "why_now": {"type": "string"},
+                    "evidence_ids": {"type": "array", "items": {"type": "string"}},
+                    "differentiator": {"type": "string"},
+                    "implementation_notes": {"type": "array", "items": {"type": "string"}},
+                    "risks": {"type": "array", "items": {"type": "string"}},
+                    "canvas_column": {"type": "string"},
+                },
+                "required": ["title", "one_liner", "evidence_ids", "differentiator"],
+            },
+        }
+    },
+    "required": ["directions"],
+}
 
 
 class IdeationAgent(BaseAgent):
@@ -20,12 +56,105 @@ class IdeationAgent(BaseAgent):
         insights: list[Insight],
         opportunities: list[str],
     ) -> list[ProductDirection]:
+        baseline = self._deterministic_directions(brief, insights, opportunities)
+        valid_evidence = {eid for insight in insights for eid in insight.evidence_ids}
+
+        system, user = self._prompt(brief, insights, opportunities)
+        response = self._chat(
+            op="ideation.generate",
+            system=system,
+            user=user,
+            schema=DIRECTIONS_SCHEMA,
+            message="generate divergent directions",
+        )
+
+        directions = self._parse_directions(response.structured, brief, valid_evidence)
+        source = "llm"
+        if not directions:
+            directions = baseline
+            source = "deterministic"
+
+        self.log(
+            "Generated divergent product directions",
+            direction_count=len(directions),
+            source=source,
+        )
+        return directions
+
+    # -- LLM path ------------------------------------------------------------
+    def _prompt(
+        self, brief: ProductBrief, insights: list[Insight], opportunities: list[str]
+    ) -> tuple[str, str]:
+        system = (
+            "You are a senior product strategist on an enterprise AI team. Given customer "
+            "evidence and strategic opportunities, propose at least five DIVERGENT, buildable "
+            "product directions. Each must cite the evidence ids that support it, name a clear "
+            "differentiator, and surface real risks. Prefer deciding-what-to-build over polishing "
+            "a single artifact."
+        )
+        insight_lines = "\n".join(
+            f"- {i.id} {i.title}: {i.summary} (evidence: {', '.join(i.evidence_ids)})"
+            for i in insights
+        )
+        opp_lines = "\n".join(f"- {o}" for o in opportunities)
+        user = (
+            f"Company: {brief.company}\n"
+            f"Product: {brief.product}\n"
+            f"Target user: {brief.target_user}\n"
+            f"Goal: {brief.goal}\n\n"
+            f"Insights:\n{insight_lines}\n\n"
+            f"Strategic opportunities:\n{opp_lines}\n\n"
+            "Return JSON with a 'directions' array. Only cite evidence ids that appear above."
+        )
+        return system, user
+
+    def _parse_directions(
+        self,
+        value: dict[str, Any] | None,
+        brief: ProductBrief,
+        valid_evidence: set[str],
+    ) -> list[ProductDirection] | None:
+        if not value:
+            return None
+        raw = value.get("directions")
+        if not isinstance(raw, list) or not raw:
+            return None
+
+        directions: list[ProductDirection] = []
+        for index, item in enumerate(raw, start=1):
+            if not isinstance(item, dict) or not item.get("title"):
+                continue
+            evidence_ids = [
+                eid for eid in _as_str_list(item.get("evidence_ids")) if eid in valid_evidence
+            ]
+            directions.append(
+                ProductDirection(
+                    id=str(item.get("id") or f"D{index}"),
+                    title=str(item["title"]),
+                    one_liner=str(item.get("one_liner", "")),
+                    target_user=str(item.get("target_user") or brief.target_user),
+                    core_loop=str(item.get("core_loop", "")),
+                    why_now=str(item.get("why_now", "")),
+                    evidence_ids=evidence_ids,
+                    differentiator=str(item.get("differentiator", "")),
+                    implementation_notes=_as_str_list(item.get("implementation_notes")),
+                    risks=_as_str_list(item.get("risks")),
+                    canvas_column=str(item.get("canvas_column") or "Ideas"),
+                    canvas_row=index,
+                )
+            )
+        return directions or None
+
+    # -- deterministic baseline ---------------------------------------------
+    def _deterministic_directions(
+        self, brief: ProductBrief, insights: list[Insight], opportunities: list[str]
+    ) -> list[ProductDirection]:
         evidence_by_tag: dict[str, list[str]] = defaultdict(list)
         for insight in insights:
             for tag in insight.tags:
                 evidence_by_tag[tag].extend(insight.evidence_ids)
 
-        directions = [
+        return [
             ProductDirection(
                 id="D1",
                 title="Opportunity Map Canvas",
@@ -161,8 +290,12 @@ class IdeationAgent(BaseAgent):
                 canvas_row=1,
             ),
         ]
-        self.log("Generated divergent product directions", direction_count=len(directions))
-        return directions
+
+
+def _as_str_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(v) for v in value if isinstance(v, (str, int, float))]
 
 
 def _pick_evidence(

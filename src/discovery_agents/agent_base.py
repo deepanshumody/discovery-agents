@@ -1,48 +1,49 @@
-"""Agent base classes and tracing helpers."""
+"""Agent base class and tracing re-exports.
+
+The trace types now live in `observability.trace`; they are re-exported here for
+backward compatibility. `BaseAgent` gains an `LLMClient` (default: the keyless
+mock) and a `_chat` helper that records a fully-costed trace span per call.
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from typing import Any
 
+from .llm import LLMClient, LLMResponse, Message, MockLLMClient, ToolSpec
+from .observability.trace import AgentTrace, Trace, TraceSpan
 
-@dataclass
-class TraceEvent:
-    agent: str
-    message: str
-    payload: dict[str, Any] = field(default_factory=dict)
-    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
-
-
-class AgentTrace:
-    """Simple trace collector for explainable multi-agent runs."""
-
-    def __init__(self) -> None:
-        self.events: list[TraceEvent] = []
-
-    def log(self, agent: str, message: str, **payload: Any) -> None:
-        self.events.append(TraceEvent(agent=agent, message=message, payload=payload))
-
-    def as_markdown(self) -> str:
-        lines = ["# Agent Trace", ""]
-        for event in self.events:
-            lines.append(f"## {event.agent}")
-            lines.append(f"- Time: `{event.timestamp}`")
-            lines.append(f"- Message: {event.message}")
-            if event.payload:
-                lines.append(f"- Payload: `{event.payload}`")
-            lines.append("")
-        return "\n".join(lines)
+__all__ = ["AgentTrace", "BaseAgent", "Trace", "TraceSpan"]
 
 
 class BaseAgent:
-    """Small base class so every agent has a name and a trace."""
+    """Small base class so every agent has a name, a trace, and an LLM client."""
 
     name = "BaseAgent"
 
-    def __init__(self, trace: AgentTrace | None = None) -> None:
-        self.trace = trace or AgentTrace()
+    def __init__(self, trace: Trace | None = None, llm: LLMClient | None = None) -> None:
+        self.trace: Trace = trace or Trace()
+        self.llm: LLMClient = llm or MockLLMClient()
 
     def log(self, message: str, **payload: Any) -> None:
         self.trace.log(self.name, message, **payload)
+
+    def _chat(
+        self,
+        *,
+        op: str,
+        system: str,
+        user: str,
+        schema: dict[str, Any] | None = None,
+        tools: list[ToolSpec] | None = None,
+        message: str = "llm call",
+    ) -> LLMResponse:
+        """Run one LLM turn and record a costed trace span.
+
+        With the mock client this returns a deterministic response whose
+        `structured` is None, so callers fall back to their deterministic
+        baseline. With a real provider, the same prompt is sent to the model.
+        """
+        messages = [Message(role="system", content=system), Message(role="user", content=user)]
+        response = self.llm.chat(messages, tools=tools, response_format=schema)
+        self.trace.record_llm(self.name, op, response, message=message)
+        return response
