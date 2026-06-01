@@ -43,6 +43,9 @@ class RunConfig:
     token_budget: int | None = None
     use_rag: bool = True
     use_langgraph: bool = False
+    # Retrieval embedder: "hashing" (keyless default) or "torch" (trained TorchEmbedder).
+    embedder: str = "hashing"
+    ml_artifact_dir: str = "outputs/ml/checkpoints"
 
     @classmethod
     def from_env(cls) -> RunConfig:
@@ -57,6 +60,8 @@ class RunConfig:
             token_budget=int(token_budget_env) if token_budget_env else None,
             use_rag=os.environ.get("DISCOVERY_USE_RAG", "1") != "0",
             use_langgraph=os.environ.get("DISCOVERY_USE_LANGGRAPH", "0") == "1",
+            embedder=os.environ.get("DISCOVERY_EMBEDDER", "hashing").lower(),
+            ml_artifact_dir=os.environ.get("DISCOVERY_ML_ARTIFACT_DIR", "outputs/ml/checkpoints"),
         )
 
     def resolved_model(self) -> str:

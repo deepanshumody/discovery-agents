@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .embeddings import Embedder, HashingEmbedder
+from .embeddings import Embedder, HashingEmbedder, get_embedder
 from .index import EvidenceIndex
 from .vector_store import (
     Chunk,
@@ -23,4 +23,5 @@ __all__ = [
     "ScoredChunk",
     "VectorStore",
     "cosine_similarity",
+    "get_embedder",
 ]

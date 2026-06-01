@@ -30,6 +30,7 @@ from .guardrails import (
 from .llm import get_client
 from .models import AgentRun, EvidenceItem, ProductBrief
 from .observability.trace import Trace
+from .retrieval.embeddings import get_embedder
 from .retrieval.index import EvidenceIndex
 from .runtime.graph import build_discovery_graph
 from .runtime.state_machine import State, StateMachine
@@ -64,8 +65,9 @@ class ProductDiscoveryPipeline:
         # any detected PII never reaches the model or the retrieval index.
         brief, evidence = self._guard_inputs(brief, evidence)
 
-        # Build the RAG index + tool registry once per run, then thread them in.
-        self.index = EvidenceIndex.from_evidence(evidence)
+        # Build the RAG index (with the configured embedder) + tool registry, then thread in.
+        embedder = get_embedder(self.config.embedder, artifact_dir=self.config.ml_artifact_dir)
+        self.index = EvidenceIndex.from_evidence(evidence, embedder=embedder)
         self.tools = ToolRegistry(
             [EvidenceSearchTool(self.index), CalculatorTool(), WebSearchTool()]
         )

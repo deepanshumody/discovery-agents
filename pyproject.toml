@@ -66,6 +66,7 @@ all = [
 [project.scripts]
 discovery-agents = "discovery_agents.cli:main"
 discovery-agents-mcp = "discovery_agents.mcp_server:main"
+discovery-agents-ml = "discovery_agents.mlinfra.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/deepanshumody/discovery-agents"

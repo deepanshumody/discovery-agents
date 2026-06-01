@@ -12,9 +12,12 @@ the corresponding extra are present.
 from __future__ import annotations
 
 import hashlib
+import logging
 import math
 import re
 from typing import Protocol, runtime_checkable
+
+logger = logging.getLogger("discovery_agents.retrieval")
 
 _TOKEN = re.compile(r"[a-zA-Z][a-zA-Z0-9_\-]+")
 
@@ -63,3 +66,23 @@ class HashingEmbedder:
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         return [self.embed(t) for t in texts]
+
+
+def get_embedder(kind: str = "hashing", *, artifact_dir: str | None = None) -> Embedder:
+    """Return an embedder by kind. Falls back to HashingEmbedder (keyless default).
+
+    ``kind="torch"`` loads the trained TorchEmbedder from ``artifact_dir`` (requires the
+    ``[ml]`` extra and exported weights); any failure logs a warning and falls back to
+    the deterministic HashingEmbedder, preserving the keyless-by-default guarantee.
+    """
+    if kind != "torch":
+        return HashingEmbedder()
+    try:
+        from ..mlinfra.embedder import TorchEmbedder
+
+        if not artifact_dir:
+            raise ValueError("torch embedder requires an artifact_dir with exported weights")
+        return TorchEmbedder.from_pretrained(artifact_dir)
+    except Exception as exc:  # missing torch, missing artifacts, etc.
+        logger.warning("torch embedder unavailable (%s); falling back to HashingEmbedder", exc)
+        return HashingEmbedder()
