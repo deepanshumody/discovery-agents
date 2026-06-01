@@ -1,0 +1,27 @@
+# Local stack: an MLflow tracking server + a one-shot training run that logs to it.
+#   docker compose -f deploy/docker-compose.yml up --build
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:latest
+    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri /mlruns
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlruns:/mlruns
+
+  trainer:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    depends_on:
+      - mlflow
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      ML_STEPS: "200"
+    command: ["train"]
+    volumes:
+      - artifacts:/app/outputs
+
+volumes:
+  mlruns:
+  artifacts:

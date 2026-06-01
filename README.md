@@ -99,6 +99,32 @@ See [`docs/architecture.md`](docs/architecture.md) for the module-by-module brea
 - **MCP server** (`mcp_server.py`) — exposes `discovery_run`, `evidence_search`, and
   `eval_run` over stdio for Claude Desktop / Claude Code. See [`docs/mcp.md`](docs/mcp.md).
 
+## ML-infrastructure platform (`mlinfra/`)
+
+The retrieval embedder isn't a toy — it can be **trained** by a production ML-infra
+platform and served back through the same `Embedder` protocol:
+
+- **Distributed PyTorch training** — a custom SimCSE/InfoNCE training loop with **DDP**
+  (`gloo` on CPU, `nccl` on GPU) and **fault-tolerant, resumable checkpointing**
+  (atomic, SIGTERM-safe; resume reproduces the trajectory exactly — a tested invariant).
+- **GPU-native data I/O** — a multi-backend **tensor archive** (`Numpy` / **Zarr** /
+  **HDF5**) with a GPU-native `DataLoader`, plus an **I/O benchmark** (samples/s, MB/s,
+  p50/p95) and a resource profiler.
+- **Distributed data curation** — a pluggable `Executor` (Local / **Dask**) that tokenizes
+  and shards a corpus into the archive.
+- **MLOps** — experiment/artifact tracking (**MLflow** or a keyless JSON tracker), a
+  **Dockerfile**, `docker-compose`, and a **Kubernetes** Indexed-Job training manifest.
+
+```bash
+pip install -e ".[ml,dask]"
+python -m discovery_agents.mlinfra.cli train --smoke    # curate -> train -> export, CPU
+DISCOVERY_EMBEDDER=torch discovery-agents               # the agent RAG now uses the trained embedder
+```
+
+Runs **CPU-first on synthetic data**, but is written for multi-GPU / petabyte scale. Full
+details in [`docs/ml-platform.md`](docs/ml-platform.md). *(This platform targets ML-infra
+roles; the agentic stack above targets applied-AI roles — the repo serves both.)*
+
 ## How it maps to the role
 
 This repo is organized to demonstrate the requirements of an applied-AI agentic-workflows

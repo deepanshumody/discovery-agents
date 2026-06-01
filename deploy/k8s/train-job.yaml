@@ -1,0 +1,62 @@
+# Multi-worker distributed training as a Kubernetes Indexed Job.
+#
+# Each pod is one DDP node; torchrun uses the pod's JOB_COMPLETION_INDEX as its rank
+# and the headless Service for rendezvous. Scale workers via `parallelism`/`completions`.
+# CPU/gloo here; for GPU add `resources.limits.nvidia.com/gpu` and an NCCL backend.
+#
+#   kubectl apply -f deploy/k8s/train-job.yaml
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: discovery-train
+spec:
+  clusterIP: None          # headless: gives each pod a stable DNS name for rendezvous
+  selector:
+    app: discovery-train
+  ports:
+    - name: rdzv
+      port: 29500
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: discovery-train
+spec:
+  completions: 2
+  parallelism: 2
+  completionMode: Indexed   # pods get a stable JOB_COMPLETION_INDEX (== DDP rank)
+  backoffLimit: 3           # retries give resilience to preemption/transient failures
+  template:
+    metadata:
+      labels:
+        app: discovery-train
+    spec:
+      subdomain: discovery-train
+      restartPolicy: OnFailure
+      containers:
+        - name: trainer
+          image: discovery-agents-ml:latest
+          command: ["torchrun"]
+          args:
+            - "--nnodes=2"
+            - "--nproc-per-node=1"
+            - "--node-rank=$(JOB_COMPLETION_INDEX)"
+            - "--rdzv-id=discovery"
+            - "--rdzv-backend=c10d"
+            - "--rdzv-endpoint=discovery-train-0.discovery-train:29500"
+            - "-m"
+            - "discovery_agents.mlinfra.cli"
+            - "train"
+          env:
+            - name: ML_BACKEND
+              value: "gloo"
+            - name: ML_STEPS
+              value: "1000"
+          resources:
+            requests:
+              cpu: "2"
+              memory: "2Gi"
+            limits:
+              cpu: "4"
+              memory: "4Gi"

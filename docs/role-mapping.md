@@ -43,3 +43,31 @@ discovery-agents --output outputs/demo
 discovery-agents --eval
 pytest -q
 ```
+
+---
+
+## ML-infrastructure role mapping
+
+The `mlinfra/` platform ([`ml-platform.md`](ml-platform.md)) targets ML-infrastructure-at-scale
+roles. Each requirement maps to runnable, tested code.
+
+| Requirement | Where it lives |
+|---|---|
+| PyTorch: custom training loops, distributed training, low-level perf | `mlinfra/train/loop.py`, `mlinfra/train/distributed.py` (DDP, gloo/nccl) |
+| Reliability/continuity of large training runs | `mlinfra/train/checkpoint.py` — atomic, resumable, SIGTERM-safe; resume reproduces the trajectory (tested) |
+| GPU-native data I/O; Zarr/HDF5/TensorStore; multi-dim tensors | `mlinfra/store/` (Numpy/Zarr/HDF5), `mlinfra/data/loader.py` |
+| I/O performance benchmarking at scale | `mlinfra/bench/io_benchmark.py` (samples/s, MB/s, p50/p95) |
+| Distributed computing (Spark/Dask/Ray) | `mlinfra/curation/executors.py` (Local + Dask; Ray = future work) |
+| Containerization & orchestration (Docker/K8s) | `deploy/Dockerfile`, `deploy/docker-compose.yml`, `deploy/k8s/train-job.yaml` |
+| MLOps / full lifecycle / artifact tracking / monitoring | `mlinfra/tracking/` (MLflow + JSON), `mlinfra/bench/profile.py`, dedicated CI job |
+| Abstractions other engineers depend on | `ArrayStore` / `Executor` / `Tracker` protocols; `TorchEmbedder` implements the existing `Embedder` |
+| AI agent frameworks (a plus) | the agentic pipeline (above) consumes the trained embedder |
+
+```bash
+pip install -e ".[ml,dask]"
+python -m discovery_agents.mlinfra.cli train --smoke   # curate -> train -> export (CPU)
+python -m discovery_agents.mlinfra.cli bench           # Numpy vs Zarr vs HDF5 I/O
+```
+
+Deferred to future work (documented in the spec): TensorStore backend, Ray executor, FSDP, and a
+K8s serving Deployment.
