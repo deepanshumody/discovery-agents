@@ -16,7 +16,7 @@ agents clusters the evidence into insights, generates several evidence-grounded
 product directions, critiques and scores them, selects a winner, and emits a
 coding-agent-ready handoff packet — every step traced, evaluated, and guarded.
 
-**Why it's built this way.** A reviewer can run the whole thing in 30 seconds with **no
+**Why it's built this way.** You can run the whole thing in 30 seconds with **no
 API key** (a deterministic mock provider + in-memory retrieval). Set
 `ANTHROPIC_API_KEY` (or `--provider cohere`/`openai`) and the *same graph* runs on a
 frontier model. CI, tests, and the eval regression gate all run keyless and
@@ -28,7 +28,7 @@ deterministically.
 pip install -e ".[dev]"
 discovery-agents --output outputs/demo        # runs on the deterministic mock provider
 discovery-agents --eval                        # run the evaluation harness + regression gate
-pytest -q                                      # 56 tests, deterministic, keyless
+pytest -q                                      # deterministic, keyless test suite
 ```
 
 `outputs/demo/` gets: `run_summary.md`, `coding_agent_handoff.md`, `canvas.html` (visual
@@ -141,19 +141,15 @@ discovery-agents --dataset banking77                                # run the ag
 ```
 
 Trains **CPU-first**, but is written for multi-GPU / petabyte scale. Full details in
-[`docs/ml-platform.md`](docs/ml-platform.md). *(This platform targets ML-infra roles; the agentic
-stack above targets applied-AI roles — the repo serves both.)*
+[`docs/ml-platform.md`](docs/ml-platform.md).
 
-## How it maps to the role
+## Capabilities at a glance
 
-This repo is organized to demonstrate the requirements of an applied-AI agentic-workflows
-role; the full table is in [`docs/role-mapping.md`](docs/role-mapping.md).
-
-| Requirement | Where |
+| Capability | Where |
 |---|---|
 | Production engineering (typed, tested, observable, CI) | strict `mypy`, `ruff`, `pytest`, GitHub Actions, `observability/` |
 | Agentic architectures (ReAct / plan-execute, tools/APIs) | `runtime/agent.py`, `tools/` |
-| LLM stack (Claude/GPT/Cohere, RAG, vector DBs, LangGraph) | `llm/`, `retrieval/`, `runtime/langgraph_adapter.py` |
+| Provider-agnostic LLM layer + RAG + vector store + LangGraph | `llm/`, `retrieval/`, `runtime/langgraph_adapter.py` |
 | Rigorous evaluation (accuracy / safety / latency) | `eval/` harness + LLM-judge + CI regression gate |
 | Reliable, observable, safe, auditable | `guardrails/`, `observability/`, decision memory |
 
@@ -173,8 +169,8 @@ src/discovery_agents/
   pipeline.py     # builds the graph + capabilities and runs it
   cli.py          # discovery-agents entry point
   mcp_server.py   # MCP server (discovery-agents-mcp)
-tests/            # 56 deterministic, keyless tests
-docs/             # architecture, evals, adding-a-tool, mcp, role-mapping + design specs
+tests/            # deterministic, keyless tests (+ an ml-infra suite under tests/mlinfra)
+docs/             # architecture, evals, adding-a-tool, mcp + design specs
 ```
 
 ## Development
