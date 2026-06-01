@@ -47,30 +47,33 @@ def retrieval_metrics(
     ks: tuple[int, ...] = (1, 5, 10),
 ) -> dict[str, float]:
     sims = query_vecs @ pool_vecs.T  # (Nq, Np) cosine similarities
-    max_k = max(ks)
+    effective = min(max(ks), sims.shape[1])  # clamp k to pool size (no argpartition crash)
     rows = np.arange(sims.shape[0])[:, None]
-    part = np.argpartition(-sims, max_k - 1, axis=1)[:, :max_k]
+    part = np.argpartition(-sims, effective - 1, axis=1)[:, :effective]
     order = np.argsort(-sims[rows, part], axis=1)
-    topk = part[rows, order]  # (Nq, max_k) pool indices, best-first
+    topk = part[rows, order]  # (Nq, effective) pool indices, best-first
 
-    relevant = pool_labels[topk] == query_labels[:, None]  # (Nq, max_k)
+    relevant = pool_labels[topk] == query_labels[:, None]  # (Nq, effective)
     # bincount must cover query labels too (a query intent may be absent from the pool).
     n_labels = int(max(np.max(pool_labels, initial=0), np.max(query_labels, initial=0))) + 1
     counts = np.bincount(pool_labels, minlength=n_labels)
     total_rel = counts[query_labels]  # relevant items in the pool per query
 
+    # hit@k = fraction of queries with >= 1 same-intent item in top-k (success@k), not
+    # textbook recall (Banking77 has ~130 same-intent items/query, so true recall@10 is tiny);
+    # hit@k is the meaningful intent-retrieval metric.
     metrics: dict[str, float] = {}
     for k in ks:
-        metrics[f"recall@{k}"] = float(relevant[:, :k].any(axis=1).mean())
+        metrics[f"hit@{k}"] = float(relevant[:, :k].any(axis=1).mean())
 
     reciprocal = np.zeros(len(query_labels))
-    average_precision = np.zeros(len(query_labels))
+    average_precision = np.zeros(len(query_labels))  # mAP over the top-`effective` window
     for i in range(len(query_labels)):
         hit_positions = np.nonzero(relevant[i])[0]
         if hit_positions.size:
             reciprocal[i] = 1.0 / (hit_positions[0] + 1)
-            precision_at = np.cumsum(relevant[i]) / (np.arange(max_k) + 1)
-            denom = min(int(total_rel[i]), max_k)
+            precision_at = np.cumsum(relevant[i]) / (np.arange(effective) + 1)
+            denom = min(int(total_rel[i]), effective)
             average_precision[i] = (precision_at * relevant[i]).sum() / max(denom, 1)
     metrics["mrr"] = float(reciprocal.mean())
     metrics["map"] = float(average_precision.mean())
@@ -134,7 +137,8 @@ def run_benchmark(
     *, full: bool = False, with_st: bool = False, steps: int | None = None, seed: int = 7
 ) -> dict[str, Any]:
     data = load_banking77(full=full)
-    steps = steps if steps is not None else (800 if full else 150)
+    # Full-run default matches the committed RESULTS.md so `benchmark --full` reproduces it.
+    steps = steps if steps is not None else (1200 if full else 150)
 
     embedders: dict[str, _EmbedderLike] = {
         "hashing (lexical baseline)": HashingEmbedder(),
@@ -150,6 +154,9 @@ def run_benchmark(
         "dataset": "banking77" + ("" if full else " (committed sample)"),
         "split": {"queries": len(data.test), "pool": len(data.train), "intents": data.num_labels},
         "train_steps": steps,
+        "full": full,
+        "with_st": with_st,
+        "seed": seed,
         "results": results,
     }
 
@@ -159,17 +166,24 @@ def write_results(report: dict[str, Any], out_dir: str = "benchmark") -> None:
     directory.mkdir(parents=True, exist_ok=True)
     (directory / "results.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
 
-    metric_cols = ["recall@1", "recall@5", "recall@10", "mrr", "map"]
+    metric_cols = ["hit@1", "hit@5", "hit@10", "mrr", "map"]
     header = "| embedder | " + " | ".join(metric_cols) + " |"
     sep = "|" + "---|" * (len(metric_cols) + 1)
+
+    repro = "python -m discovery_agents.mlinfra.cli benchmark"
+    repro += " --full" if report.get("full") else ""
+    repro += " --with-st" if report.get("with_st") else ""
     lines = [
         "# Retrieval benchmark — Banking77 intent retrieval",
         "",
         f"Dataset: **{report['dataset']}** · queries (test): {report['split']['queries']} · "
         f"pool (train): {report['split']['pool']} · intents: {report['split']['intents']} · "
-        f"train steps: {report['train_steps']}.",
+        f"train steps: {report['train_steps']} · seed: {report.get('seed', 7)}.",
         "",
-        "Relevant = same intent. Reproduce: `python -m discovery_agents.mlinfra.cli benchmark --full`.",
+        "Relevant = same intent. **hit@k** = fraction of queries with ≥1 same-intent item in "
+        "top-k (success@k, not textbook recall); **map** = mAP over the top-10 window.",
+        "",
+        f"Reproduce: `{repro}`.",
         "",
         header,
         sep,

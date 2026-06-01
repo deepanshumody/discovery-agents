@@ -115,17 +115,19 @@ def cmd_bench(data: DataConfig, base: str) -> int:
     return 0
 
 
-def cmd_retrieval_benchmark(*, full: bool, with_st: bool, steps: int | None) -> int:
+def cmd_retrieval_benchmark(
+    *, full: bool, with_st: bool, steps: int | None, out: str = "benchmark"
+) -> int:
     from .retrieval_eval import run_benchmark, write_results
 
     report = run_benchmark(full=full, with_st=with_st, steps=steps)
-    write_results(report)
-    cols = ["recall@1", "recall@5", "recall@10", "mrr", "map"]
+    write_results(report, out_dir=out)
+    cols = ["hit@1", "hit@5", "hit@10", "mrr", "map"]
     print(f"\nBanking77 retrieval ({report['dataset']}, {report['train_steps']} steps):")
     print(f"  {'embedder':34} " + " ".join(f"{c:>9}" for c in cols))
     for name, metrics in report["results"].items():
         print(f"  {name:34} " + " ".join(f"{metrics[c]:9.4f}" for c in cols))
-    print("\nWrote benchmark/RESULTS.md + benchmark/results.json")
+    print(f"\nWrote {out}/RESULTS.md + {out}/results.json")
     return 0
 
 
@@ -168,6 +170,9 @@ def main(argv: list[str] | None = None) -> None:
         action="store_true",
         help="benchmark: include the sentence-transformers reference.",
     )
+    parser.add_argument(
+        "--out", default="benchmark", help="benchmark: directory for RESULTS.md / results.json."
+    )
     args = parser.parse_args(argv)
 
     seq_len = 16 if args.smoke else args.seq_len
@@ -191,7 +196,9 @@ def main(argv: list[str] | None = None) -> None:
         raise SystemExit(cmd_bench(data, args.artifacts))
     if args.command == "benchmark":
         steps = None if args.steps == 200 else args.steps  # 200 is the train default, not bench
-        raise SystemExit(cmd_retrieval_benchmark(full=args.full, with_st=args.with_st, steps=steps))
+        raise SystemExit(
+            cmd_retrieval_benchmark(full=args.full, with_st=args.with_st, steps=steps, out=args.out)
+        )
     if args.command == "export":
         raise SystemExit(cmd_export(args.artifacts))
     # train (and --smoke runs the full curate -> train -> export chain)

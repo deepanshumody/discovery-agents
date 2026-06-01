@@ -25,3 +25,20 @@ def test_loader_is_deterministic() -> None:
     b = load_banking77(full=False)
     assert a.train.texts == b.train.texts
     assert a.train.labels == b.train.labels
+
+
+def test_name_for_handles_noncontiguous_labels(tmp_path, monkeypatch) -> None:
+    # Sparse label ids (a slice that omits intents) must map by id, not list position
+    # — guards against the positional-indexing bug.
+    csv_path = tmp_path / "sparse.csv"
+    csv_path.write_text(
+        "split,text,label,label_text\n"
+        "train,reset my pin,5,reset_pin\n"
+        "train,where is my card,9,card_location\n"
+        "test,pin reset please,5,reset_pin\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("BANKING77_SAMPLE", str(csv_path))
+    data = load_banking77(full=False)
+    assert data.name_for(5) == "reset_pin"
+    assert data.name_for(9) == "card_location"  # positional indexing would crash/mislabel here

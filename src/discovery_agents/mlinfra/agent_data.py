@@ -53,7 +53,7 @@ def evidence_from_banking77(
     for label in chosen:
         messages = by_intent[label]
         picks = rng.sample(messages, min(per_intent, len(messages)))
-        intent_name = data.label_names[label]
+        intent_name = data.name_for(label)  # id->name map (label ids may be sparse)
         for text in picks:
             evidence.append(
                 EvidenceItem(

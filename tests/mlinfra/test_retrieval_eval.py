@@ -15,19 +15,28 @@ def test_perfect_retrieval_scores_one() -> None:
     queries = np.array([[1.0, 0.0], [0.0, 1.0]])
     query_labels = np.array([0, 1])
     m = retrieval_metrics(queries, query_labels, pool, pool_labels, ks=(1, 2))
-    assert m["recall@1"] == 1.0
+    assert m["hit@1"] == 1.0
     assert m["mrr"] == 1.0
     assert m["map"] == 1.0
 
 
-def test_no_relevant_scores_zero_recall() -> None:
+def test_no_relevant_scores_zero() -> None:
     pool = np.array([[1.0, 0.0], [1.0, 0.0]])
     pool_labels = np.array([0, 0])
     queries = np.array([[0.0, 1.0]])  # orthogonal, but label 1 has no pool members
     query_labels = np.array([1])
     m = retrieval_metrics(queries, query_labels, pool, pool_labels, ks=(1,))
-    assert m["recall@1"] == 0.0
+    assert m["hit@1"] == 0.0
     assert m["mrr"] == 0.0
+
+
+def test_metrics_clamp_k_to_pool_size() -> None:
+    # ks larger than the pool must clamp, not crash (np.argpartition kth bound).
+    pool = np.array([[1.0, 0.0], [0.0, 1.0]])
+    pool_labels = np.array([0, 1])
+    queries = np.array([[1.0, 0.0]])
+    m = retrieval_metrics(queries, np.array([0]), pool, pool_labels, ks=(1, 5, 10))
+    assert m["hit@1"] == 1.0 and m["hit@10"] == 1.0  # k clamped to pool size of 2
 
 
 def test_run_benchmark_sample_structure() -> None:
@@ -39,5 +48,5 @@ def test_run_benchmark_sample_structure() -> None:
         report["results"]
     )
     for metrics in report["results"].values():
-        for key in ("recall@1", "recall@5", "recall@10", "mrr", "map"):
+        for key in ("hit@1", "hit@5", "hit@10", "mrr", "map"):
             assert 0.0 <= metrics[key] <= 1.0

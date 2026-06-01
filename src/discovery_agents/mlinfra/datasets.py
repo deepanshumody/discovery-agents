@@ -39,10 +39,15 @@ class Banking77:
     train: LabeledSplit
     test: LabeledSplit
     label_names: list[str]
+    id_to_name: dict[int, str]  # explicit map; label ids may be sparse/non-contiguous
 
     @property
     def num_labels(self) -> int:
         return len(self.label_names)
+
+    def name_for(self, label: int) -> str:
+        """Intent name for a label id (do NOT index label_names by id — ids may be sparse)."""
+        return self.id_to_name.get(label, str(label))
 
 
 def load_banking77(full: bool = False) -> Banking77:
@@ -66,6 +71,7 @@ def _load_sample() -> Banking77:
         train=LabeledSplit(*splits["train"]),
         test=LabeledSplit(*splits["test"]),
         label_names=[names[i] for i in sorted(names)],
+        id_to_name=dict(names),
     )
 
 
@@ -87,4 +93,9 @@ def _load_full() -> Banking77:
 
     train = convert("train")
     test = convert("test")
-    return Banking77(train=train, test=test, label_names=[names[i] for i in sorted(names)])
+    return Banking77(
+        train=train,
+        test=test,
+        label_names=[names[i] for i in sorted(names)],
+        id_to_name=dict(names),
+    )

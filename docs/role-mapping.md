@@ -53,7 +53,7 @@ roles. Each requirement maps to runnable, tested code.
 
 | Requirement | Where it lives |
 |---|---|
-| **Measured result on real data** | **Banking77 retrieval** ([`../benchmark/RESULTS.md`](../benchmark/RESULTS.md)): trained embedder beats the lexical baseline — recall@1 0.830 vs 0.769, **mAP 0.775 vs 0.503** |
+| **Measured result on real data** | **Banking77 retrieval** ([`../benchmark/RESULTS.md`](../benchmark/RESULTS.md)): trained embedder beats the lexical baseline — hit@1 0.830 vs 0.769, **mAP 0.775 vs 0.503** |
 | PyTorch: custom training loops, distributed training, low-level perf | `mlinfra/train/loop.py`, `mlinfra/train/distributed.py` (DDP, gloo/nccl); SupCon training in `retrieval_eval.py` |
 | Reliability/continuity of large training runs | `mlinfra/train/checkpoint.py` — atomic, fsync-durable, resumable, SIGTERM-safe; resume reproduces the trajectory (tested) |
 | GPU-native data I/O; Zarr/HDF5/TensorStore; multi-dim tensors | `mlinfra/store/` (Numpy/Zarr/HDF5), `mlinfra/data/loader.py` |
@@ -65,7 +65,7 @@ roles. Each requirement maps to runnable, tested code.
 | AI agent frameworks (a plus) | the agentic pipeline (above) consumes the trained embedder |
 
 ```bash
-pip install -e ".[ml,dask,benchmark]"
+pip install -e ".[ml,dask,benchmark,st]"
 python -m discovery_agents.mlinfra.cli benchmark --full --with-st   # the headline result
 python -m discovery_agents.mlinfra.cli train --smoke               # curate -> train -> export (CPU)
 python -m discovery_agents.mlinfra.cli io-bench                     # Numpy vs Zarr vs HDF5 I/O

@@ -75,5 +75,8 @@ jobs:
       - name: Pytest (mlinfra)
         run: pytest -q tests/mlinfra
 
-      - name: Train smoke (curate -> train 2 steps -> bench, CPU)
+      - name: Train smoke (curate -> train -> export, CPU)
         run: python -m discovery_agents.mlinfra.cli train --smoke
+
+      - name: Benchmark smoke (sample, tiny — guards the CLI wiring, no download)
+        run: python -m discovery_agents.mlinfra.cli benchmark --steps 5 --out /tmp/bench-smoke
