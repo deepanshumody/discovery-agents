@@ -149,5 +149,5 @@ class ProductDiscoveryPipeline:
         (output / "coding_agent_handoff.md").write_text(
             render_handoff_markdown(run), encoding="utf-8"
         )
-        (output / "canvas.html").write_text(render_canvas_html(run), encoding="utf-8")
+        (output / "canvas.html").write_text(render_canvas_html(run, self.trace), encoding="utf-8")
         (output / "agent_trace.md").write_text(self.trace.as_markdown(), encoding="utf-8")

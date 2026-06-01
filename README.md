@@ -1,64 +1,148 @@
 # discovery-agents
 
-A multi-agent product-discovery pipeline. Given a product brief and a set of
-customer evidence, it clusters the evidence into insights, generates several
-candidate product directions, critiques and scores them, picks a winner, and
-produces a coding-agent-ready handoff packet.
+[![CI](https://github.com/deepanshumody/discovery-agents/actions/workflows/ci.yml/badge.svg)](https://github.com/deepanshumody/discovery-agents/actions/workflows/ci.yml)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Checked with mypy](https://img.shields.io/badge/types-mypy%20strict-blue.svg)](https://mypy-lang.org/)
+[![Lint: ruff](https://img.shields.io/badge/lint-ruff-orange.svg)](https://docs.astral.sh/ruff/)
 
-The demo runs entirely on the standard library so it can be executed anywhere.
-Each agent is deliberately small and deterministic — the architecture is
-designed so any single agent can later be backed by an LLM, retrieval index, or
-multimodal model without changing the pipeline shape.
+> A production-grade, **LLM-powered multi-agent workflow** for enterprise product
+> discovery — with **RAG**, a **ReAct tool-use loop**, a **rigorous evaluation
+> harness**, **guardrails**, full **observability**, and an **MCP server**.
+> **Keyless by default, real on demand.**
 
-## Layout
+Given a product brief and a corpus of customer evidence, a graph of nine specialized
+agents clusters the evidence into insights, generates several evidence-grounded
+product directions, critiques and scores them, selects a winner, and emits a
+coding-agent-ready handoff packet — every step traced, evaluated, and guarded.
+
+**Why it's built this way.** A reviewer can run the whole thing in 30 seconds with **no
+API key** (a deterministic mock provider + in-memory retrieval). Set
+`ANTHROPIC_API_KEY` (or `--provider cohere`/`openai`) and the *same graph* runs on a
+frontier model. CI, tests, and the eval regression gate all run keyless and
+deterministically.
+
+## 30-second quickstart (no API key)
+
+```bash
+pip install -e ".[dev]"
+discovery-agents --output outputs/demo        # runs on the deterministic mock provider
+discovery-agents --eval                        # run the evaluation harness + regression gate
+pytest -q                                      # 56 tests, deterministic, keyless
+```
+
+`outputs/demo/` gets: `run_summary.md`, `coding_agent_handoff.md`, `canvas.html` (visual
+canvas + eval dashboard + trace timeline), `agent_run.json`, and `agent_trace.md`.
+
+## Run it on a real frontier model
+
+```bash
+pip install -e ".[anthropic]"      # or .[cohere] / .[openai]
+export ANTHROPIC_API_KEY=...
+discovery-agents --provider anthropic --model claude-sonnet-4-6 --output outputs/live
+```
+
+Providers are pluggable behind one `LLMClient` protocol; if a key or SDK is missing the
+factory logs a warning and falls back to the mock, so the workflow always runs.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph Interfaces
+    CLI[CLI] ; MCP[MCP server - stdio]
+  end
+  subgraph Runtime["Runtime: typed state machine + ReAct loop"]
+    SM[StateMachine] --- LG[optional LangGraph adapter]
+  end
+  subgraph Agents["9 agents - LLM-backed"]
+    EI[EvidenceInsight] --> ST[Strategy] --> ID[Ideation] --> CR[Critique] --> CA[Canvas] --> SE[Selection] --> HO[Handoff] --> ME[Memory]
+  end
+  subgraph Capabilities
+    LLM[LLM adapter: Claude/Cohere/GPT/Mock]
+    RAG[Retrieval: embeddings + vector store]
+    TOOLS[Tools: evidence_search, web_search, calculator]
+    GR[Guardrails: input/output]
+    OBS[Observability: latency/tokens/cost]
+  end
+  EVAL[Eval harness: LLM-judge + metrics + regression gate]
+  CLI --> Runtime ; MCP --> Runtime
+  Runtime --> Agents
+  Agents -. uses .-> LLM ; Agents -. uses .-> RAG ; ID -. ReAct .-> TOOLS
+  Agents -. wrapped by .-> GR ; Agents -. emit .-> OBS
+  Runtime --> EVAL
+```
+
+See [`docs/architecture.md`](docs/architecture.md) for the module-by-module breakdown.
+
+## What's inside
+
+- **Provider-agnostic LLM layer** (`llm/`) — one `LLMClient` protocol; deterministic
+  keyless `MockLLMClient` (default) + lazy Anthropic / Cohere / OpenAI adapters with
+  tool-calling and structured-output support.
+- **RAG** (`retrieval/`) — `Embedder` + deterministic `HashingEmbedder`, a `VectorStore`
+  (in-memory cosine + lazy Pinecone adapter), and an `EvidenceIndex` that returns cited
+  passages.
+- **ReAct runtime** (`runtime/`) — a typed `StateMachine` (topological ordering, cycle
+  detection, a trace span per node) and an `LLMAgent` plan-execute loop with tool use,
+  step budgets, and full step tracing; plus an optional **LangGraph** adapter that runs
+  the same graph.
+- **Tools** (`tools/`) — a `Tool` protocol + registry, a RAG `evidence_search`, a safe
+  AST `calculator`, and a mockable `web_search`. See [`docs/adding-a-tool.md`](docs/adding-a-tool.md).
+- **Guardrails** (`guardrails/`) — input (PII redaction, prompt-injection block) and
+  output (citation-required, groundedness, schema) checks, each recorded to the trace.
+- **Observability** (`observability/`) — a `Trace` of spans carrying latency, token
+  usage, and cost, rendered to Markdown and an HTML timeline.
+- **Evaluation** (`eval/`) — deterministic quality metrics + an **LLM-as-judge**
+  (faithfulness / relevance / helpfulness), aggregated into a scorecard and gated against
+  a committed `baseline.json` in CI. See [`docs/evals.md`](docs/evals.md).
+- **MCP server** (`mcp_server.py`) — exposes `discovery_run`, `evidence_search`, and
+  `eval_run` over stdio for Claude Desktop / Claude Code. See [`docs/mcp.md`](docs/mcp.md).
+
+## How it maps to the role
+
+This repo is organized to demonstrate the requirements of an applied-AI agentic-workflows
+role; the full table is in [`docs/role-mapping.md`](docs/role-mapping.md).
+
+| Requirement | Where |
+|---|---|
+| Production engineering (typed, tested, observable, CI) | strict `mypy`, `ruff`, `pytest`, GitHub Actions, `observability/` |
+| Agentic architectures (ReAct / plan-execute, tools/APIs) | `runtime/agent.py`, `tools/` |
+| LLM stack (Claude/GPT/Cohere, RAG, vector DBs, LangGraph) | `llm/`, `retrieval/`, `runtime/langgraph_adapter.py` |
+| Rigorous evaluation (accuracy / safety / latency) | `eval/` harness + LLM-judge + CI regression gate |
+| Reliable, observable, safe, auditable | `guardrails/`, `observability/`, decision memory |
+
+## Project layout
 
 ```
 src/discovery_agents/
-  agent_base.py        # BaseAgent + AgentTrace
-  models.py            # dataclasses: ProductBrief, EvidenceItem, …
-  pipeline.py          # orchestrator
-  render.py            # Markdown + HTML renderers
-  sample_data.py       # demo brief + evidence
-  cli.py               # `python -m discovery_agents.cli`
-  agents/
-    evidence_insight.py
-    strategy.py
-    ideation.py
-    critique.py
-    canvas.py
-    selection.py
-    handoff.py
-    eval.py
-    memory.py
-tests/                 # pytest suite
-docs/                  # additional documentation
-outputs/               # generated artifacts (git-ignored)
+  llm/            # LLMClient protocol, mock + Anthropic/Cohere/OpenAI adapters, factory
+  retrieval/      # embeddings, vector store, evidence index (RAG)
+  tools/          # Tool protocol + registry; evidence_search, calculator, web_search
+  runtime/        # state machine, ReAct agent loop, discovery graph, LangGraph adapter
+  agents/         # the 9 discovery agents (LLM-backed, with deterministic baselines)
+  guardrails/     # input/output safety checks + pipeline
+  observability/  # trace spans (latency/tokens/cost), cost table, HTML report
+  eval/           # metrics, LLM-as-judge, harness, committed baseline.json
+  config.py       # RunConfig (provider/model/flags), env-driven
+  pipeline.py     # builds the graph + capabilities and runs it
+  cli.py          # discovery-agents entry point
+  mcp_server.py   # MCP server (discovery-agents-mcp)
+tests/            # 56 deterministic, keyless tests
+docs/             # architecture, evals, adding-a-tool, mcp, role-mapping + design specs
 ```
 
-## Install
+## Development
 
 ```bash
-pip install -e .[dev]
+ruff check src tests && ruff format src tests   # lint + format
+mypy                                            # strict type check
+pytest -q                                       # tests (keyless, deterministic)
 ```
 
-## Run the demo
+CI runs all of the above plus the eval regression gate on Python 3.9–3.12. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-```bash
-python -m discovery_agents.cli --output outputs/demo
-# or, after install:
-discovery-agents --output outputs/demo
-```
+## License
 
-This writes five artifacts into `outputs/demo/`:
-
-- `run_summary.md` — narrative summary of the run
-- `coding_agent_handoff.md` — implementation-ready spec
-- `canvas.html` — visual canvas of all candidate directions
-- `agent_run.json` — full structured run artifact
-- `agent_trace.md` — per-agent trace log
-
-## Test
-
-```bash
-pytest
-```
+MIT — see [`LICENSE`](LICENSE).

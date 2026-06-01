@@ -5,6 +5,8 @@ from __future__ import annotations
 import html
 
 from .models import AgentRun
+from .observability.report import render_trace_html
+from .observability.trace import Trace
 
 
 def render_run_markdown(run: AgentRun) -> str:
@@ -101,7 +103,7 @@ def render_handoff_markdown(run: AgentRun) -> str:
     return "\n".join(lines)
 
 
-def render_canvas_html(run: AgentRun) -> str:
+def render_canvas_html(run: AgentRun, trace: Trace | None = None) -> str:
     critique_by_id: dict[str, float] = {c.direction_id: c.weighted_score for c in run.critiques}
     selected = run.selected_direction_id
     cards_html = []
@@ -124,6 +126,8 @@ def render_canvas_html(run: AgentRun) -> str:
         f"<tr><td>{html.escape(e.metric)}</td><td>{e.score:.2f}</td><td>{html.escape(e.explanation)}</td></tr>"
         for e in run.evals
     )
+
+    trace_section = render_trace_html(trace) if trace is not None else ""
 
     return f"""<!doctype html>
 <html lang="en">
@@ -175,5 +179,6 @@ def render_canvas_html(run: AgentRun) -> str:
       <tbody>{eval_rows}</tbody>
     </table>
   </section>
+  <section>{trace_section}</section>
 </body>
 </html>"""
