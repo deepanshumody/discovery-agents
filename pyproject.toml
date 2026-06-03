@@ -39,6 +39,9 @@ dependencies = []
 anthropic = ["anthropic>=0.39"]
 cohere = ["cohere>=5.5"]
 openai = ["openai>=1.40"]
+gemini = ["google-genai>=0.3"]
+# FastAPI live demo.
+web = ["fastapi>=0.110", "uvicorn[standard]>=0.29"]
 # Optional orchestration + retrieval backends.
 langgraph = ["langgraph>=0.2"]
 vectordb = ["pinecone-client>=4", "weaviate-client>=4"]
@@ -131,6 +134,7 @@ module = [
     "sklearn.*",
     "sentence_transformers.*",
     "pandas.*",
+    "google.*",
 ]
 follow_imports = "skip"
 ignore_missing_imports = true

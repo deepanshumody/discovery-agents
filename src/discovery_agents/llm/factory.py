@@ -26,10 +26,12 @@ def get_client(config: RunConfig | None = None) -> LLMClient:
     if provider in ("", "mock"):
         return MockLLMClient(model="mock-1")
 
+    # A key may come from the request (config.api_key) or the provider's env var.
     key_env = config.key_env_var()
-    if key_env and not os.environ.get(key_env):
+    has_key = bool(config.api_key) or bool(key_env and os.environ.get(key_env))
+    if key_env and not has_key:
         logger.warning(
-            "Provider %r selected but %s is not set; falling back to the mock client.",
+            "Provider %r selected but no key (request api_key or %s); falling back to the mock.",
             provider,
             key_env,
         )
@@ -48,6 +50,10 @@ def get_client(config: RunConfig | None = None) -> LLMClient:
             from .openai_client import OpenAIClient
 
             return OpenAIClient(model=model, config=config)
+        if provider == "gemini":
+            from .gemini_client import GeminiClient
+
+            return GeminiClient(model=model, config=config)
     except ImportError as exc:  # SDK not installed
         logger.warning(
             "Provider %r SDK not installed (%s); falling back to the mock client. "

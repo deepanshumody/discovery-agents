@@ -7,10 +7,13 @@ mock) and a `_chat` helper that records a fully-costed trace span per call.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from .llm import LLMClient, LLMResponse, Message, MockLLMClient, ToolSpec
 from .observability.trace import AgentTrace, Trace, TraceSpan
+
+logger = logging.getLogger("discovery_agents.agents")
 
 __all__ = ["AgentTrace", "BaseAgent", "Trace", "TraceSpan"]
 
@@ -44,6 +47,19 @@ class BaseAgent:
         baseline. With a real provider, the same prompt is sent to the model.
         """
         messages = [Message(role="system", content=system), Message(role="user", content=user)]
-        response = self.llm.chat(messages, tools=tools, response_format=schema)
+        try:
+            response = self.llm.chat(messages, tools=tools, response_format=schema)
+        except Exception as exc:
+            # A provider error (429, network, bad key, ...) must never crash a run — degrade
+            # to the agent's deterministic fallback (structured=None) and record the failure.
+            logger.warning(
+                "LLM call failed in %s (%s); falling back to deterministic.",
+                self.name,
+                type(exc).__name__,
+            )
+            self.trace.record(
+                TraceSpan(agent=self.name, op=op, message=f"llm-error: {type(exc).__name__}")
+            )
+            return LLMResponse(structured=None, model=getattr(self.llm, "model", "unknown"))
         self.trace.record_llm(self.name, op, response, message=message)
         return response

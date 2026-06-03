@@ -18,6 +18,9 @@ PRICES_PER_1K: dict[str, tuple[float, float]] = {
     "command-r": (0.00015, 0.0006),
     "gpt-4o": (0.005, 0.015),
     "gpt-4o-mini": (0.00015, 0.0006),
+    "gemini-2.0-flash": (0.0001, 0.0004),
+    "gemini-1.5-flash": (0.000075, 0.0003),
+    "gemini-1.5-pro": (0.00125, 0.005),
 }
 
 # Used when a model id is not in the table (e.g. a future/custom model).

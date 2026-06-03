@@ -22,7 +22,7 @@ class OpenAIClient:
 
         self.model = model
         self.config = config
-        self._client = OpenAI()
+        self._client = OpenAI(api_key=config.api_key) if config.api_key else OpenAI()
 
     def chat(
         self,

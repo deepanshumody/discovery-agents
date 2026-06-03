@@ -16,6 +16,7 @@ DEFAULT_MODELS: dict[str, str] = {
     "anthropic": "claude-sonnet-4-6",
     "cohere": "command-r-plus",
     "openai": "gpt-4o",
+    "gemini": "gemini-2.0-flash",
 }
 
 # Environment variable that holds each provider's API key.
@@ -23,6 +24,7 @@ PROVIDER_KEY_ENV: dict[str, str] = {
     "anthropic": "ANTHROPIC_API_KEY",
     "cohere": "COHERE_API_KEY",
     "openai": "OPENAI_API_KEY",
+    "gemini": "GEMINI_API_KEY",
 }
 
 
@@ -37,6 +39,7 @@ class RunConfig:
 
     provider: str = "mock"
     model: str | None = None
+    api_key: str | None = None  # explicit per-request key (web BYO); else adapters read env
     temperature: float = 0.2
     max_tokens: int = 1024
     max_steps: int = 6

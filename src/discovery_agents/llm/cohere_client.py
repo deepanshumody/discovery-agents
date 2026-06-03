@@ -26,7 +26,9 @@ class CohereClient:
 
         self.model = model
         self.config = config
-        self._client = cohere.ClientV2()
+        self._client = (
+            cohere.ClientV2(api_key=config.api_key) if config.api_key else cohere.ClientV2()
+        )
 
     def chat(
         self,

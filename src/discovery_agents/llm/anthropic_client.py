@@ -22,7 +22,7 @@ class AnthropicClient:
 
         self.model = model
         self.config = config
-        self._client = Anthropic()
+        self._client = Anthropic(api_key=config.api_key) if config.api_key else Anthropic()
 
     def chat(
         self,
