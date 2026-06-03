@@ -29,3 +29,7 @@ outputs/
 
 # Local Claude Code settings
 .claude/
+
+# Local secrets / env
+.env
+.env.*
