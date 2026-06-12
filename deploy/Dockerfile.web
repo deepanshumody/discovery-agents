@@ -1,0 +1,28 @@
+# FastAPI live-demo image for the product-discovery pipeline.
+# Build:  docker build -f deploy/Dockerfile.web -t discovery-agents-web .
+# Run:    docker run --rm -p 8000:8000 discovery-agents-web
+#         # optional real LLM (Gemini): pass a key as an env var, never bake it in
+#         docker run --rm -p 8000:8000 -e GEMINI_API_KEY=$GEMINI_API_KEY discovery-agents-web
+#
+# Keyless by default: with no key the demo runs the deterministic mock. With a
+# server key it allows a rate-limited number of free runs; visitors can also bring
+# their own key in the request. No torch / no GPU — the pipeline uses the hashing
+# embedder, so this image stays small.
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    DISCOVERY_PROVIDER=mock \
+    PORT=8000
+
+WORKDIR /app
+COPY pyproject.toml README.md ./
+COPY src ./src
+
+# Web server + the Gemini provider (the demo's default real LLM).
+RUN python -m pip install --upgrade pip && pip install ".[web,gemini]"
+
+EXPOSE 8000
+
+# Honor $PORT (Render/Fly/Cloud Run set it); default 8000 locally.
+CMD ["sh", "-c", "uvicorn discovery_agents.webapp:app --host 0.0.0.0 --port ${PORT:-8000}"]

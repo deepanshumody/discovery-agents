@@ -37,13 +37,40 @@ canvas + eval dashboard + trace timeline), `agent_run.json`, and `agent_trace.md
 ## Run it on a real frontier model
 
 ```bash
-pip install -e ".[anthropic]"      # or .[cohere] / .[openai]
+pip install -e ".[anthropic]"      # or .[cohere] / .[openai] / .[gemini]
 export ANTHROPIC_API_KEY=...
 discovery-agents --provider anthropic --model claude-sonnet-4-6 --output outputs/live
 ```
 
 Providers are pluggable behind one `LLMClient` protocol; if a key or SDK is missing the
-factory logs a warning and falls back to the mock, so the workflow always runs.
+factory logs a warning and falls back to the mock, so the workflow always runs. The
+reasoning agents (EvidenceInsight, Strategy, Ideation, Critique, Handoff, Memory) call the
+model and parse structured JSON; Canvas layout and Selection stay deterministic.
+
+## Live demo (FastAPI)
+
+A deployable web app runs the whole pipeline with the reasoning agents on a real LLM
+(default **Gemini**). Keyless by default; bring your own key per request, or set a host key
+for a rate-limited number of free runs.
+
+```bash
+pip install -e ".[web,gemini]"
+uvicorn discovery_agents.webapp:app --reload          # open http://localhost:8000
+# optional: a host key enables free server-side runs (visitors can also paste their own)
+export GEMINI_API_KEY=...                              # never commit this
+```
+
+- `GET /` — form: pick a dataset (enterprise sample / Banking77-style support), a provider,
+  an optional API key, and a goal override; renders the selected direction, all directions
+  with scores, the eval scorecard, decision memory, and trace totals.
+- `POST /api/run` — JSON in `{provider?, api_key?, dataset?, brief?, evidence?}`, JSON out
+  `{selected, directions, evals, decision_log, trace, provider_used}`.
+- `GET /healthz` — liveness.
+
+Keys are read from the request or the host env only — never logged, stored, or echoed.
+Container: `docker build -f deploy/Dockerfile.web -t discovery-agents-web .` then
+`docker run --rm -p 8000:8000 -e GEMINI_API_KEY=$GEMINI_API_KEY discovery-agents-web`.
+See [`docs/webapp.md`](docs/webapp.md) for deploy notes (Render/Fly/Cloud Run).
 
 ## Architecture
 
@@ -59,7 +86,7 @@ flowchart LR
     EI[EvidenceInsight] --> ST[Strategy] --> ID[Ideation] --> CR[Critique] --> CA[Canvas] --> SE[Selection] --> HO[Handoff] --> ME[Memory]
   end
   subgraph Capabilities
-    LLM[LLM adapter: Claude/Cohere/GPT/Mock]
+    LLM[LLM adapter: Claude/Cohere/GPT/Gemini/Mock]
     RAG[Retrieval: embeddings + vector store]
     TOOLS[Tools: evidence_search, web_search, calculator]
     GR[Guardrails: input/output]
@@ -157,7 +184,7 @@ Trains **CPU-first**, but is written for multi-GPU / petabyte scale. Full detail
 
 ```
 src/discovery_agents/
-  llm/            # LLMClient protocol, mock + Anthropic/Cohere/OpenAI adapters, factory
+  llm/            # LLMClient protocol, mock + Anthropic/Cohere/OpenAI/Gemini adapters, factory
   retrieval/      # embeddings, vector store, evidence index (RAG)
   tools/          # Tool protocol + registry; evidence_search, calculator, web_search
   runtime/        # state machine, ReAct agent loop, discovery graph, LangGraph adapter
@@ -168,6 +195,7 @@ src/discovery_agents/
   config.py       # RunConfig (provider/model/flags), env-driven
   pipeline.py     # builds the graph + capabilities and runs it
   cli.py          # discovery-agents entry point
+  webapp.py       # FastAPI live demo (UI + /api/run + /healthz); webdata.py = demo datasets
   mcp_server.py   # MCP server (discovery-agents-mcp)
 tests/            # deterministic, keyless tests (+ an ml-infra suite under tests/mlinfra)
 docs/             # architecture, evals, adding-a-tool, mcp + design specs
